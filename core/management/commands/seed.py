@@ -7,7 +7,7 @@ class Command(BaseCommand):
     help = "Populate database with sample data"
 
     def handle(self, *args, **kwargs):
-        # Limpia la base primero
+        # lipio la base
         Organization.objects.all().delete()
         Category.objects.all().delete()
         Zone.objects.all().delete()
@@ -15,23 +15,23 @@ class Command(BaseCommand):
         Measurement.objects.all().delete()
         Alert.objects.all().delete()
 
-        # Crear organización
+        #  organización
         org = Organization.objects.create(name="TechCorp")
 
-        # Crear categorías
+        #  categorías
         categories = [
             Category.objects.create(name="Temperature Sensors", organization=org),
             Category.objects.create(name="Humidity Sensors", organization=org),
             Category.objects.create(name="Pressure Sensors", organization=org),
         ]
 
-        # Crear zonas
+        #  zonas
         zones = [
             Zone.objects.create(name="Factory A", organization=org),
             Zone.objects.create(name="Factory B", organization=org),
         ]
 
-        # Crear dispositivos
+        #  dispositivos
         devices = []
         for i in range(1, 11):
             device = Device.objects.create(
@@ -42,7 +42,7 @@ class Command(BaseCommand):
             )
             devices.append(device)
 
-        # Crear mediciones
+        #  mediciones
         for device in devices:
             for _ in range(10):  # 10 mediciones por dispositivo
                 Measurement.objects.create(
@@ -51,7 +51,7 @@ class Command(BaseCommand):
                     created_at=datetime.now() - timedelta(minutes=random.randint(1, 500))
                 )
 
-        # Crear alertas
+        #  alertas
         for device in devices[:5]:  # solo para algunos dispositivos
             d1 = Device.objects.first()
             Alert.objects.create(device=d1, message="Temperatura muy alta", priority="grave")
