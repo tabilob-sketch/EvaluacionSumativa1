@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+
+    <h2 class="mb-3">Dashboard</h2>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Dispositivos por Categoría</div>
+                <ul class="list-group list-group-flush">
+                    {% for name, count in devices_by_category.items %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        {{ name }} <span class="badge bg-dark">{{ count }}</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item">No categories available</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Dispositivos por Zona</div>
+                <ul class="list-group list-group-flush">
+                    {% for name, count in devices_by_zone.items %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        {{ name }} <span class="badge bg-dark">{{ count }}</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item">No zones available</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Alertas de la Semana</div>
+                <div class="card-body">
+                    <span class="badge bg-danger">Grave: 2</span>
+                    <span class="badge bg-warning text-dark">Alto: 5</span>
+                    <span class="badge bg-secondary">Mediano: 9</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Últimas mediciones -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Últimas 10 Mediciones</span>
+                    <a href="{% url 'measurement_list' %}" class="btn btn-sm btn-outline-primary">Ver todas</a>
+                </div>
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-center">Fecha/Hora</th>
+                            <th>Dispositivo</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in latest_measurements %}
+                        <tr>
+                            <td class="text-center">{{ m.created_at|date:"Y-m-d H:i" }}</td>
+                            <td>{{ m.device.name }}</td>
+                            <td>{{ m.value }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3">No measurements available</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <span>Alertas Recientes</span>
+                    <a href="{% url 'alert_list' %}">Ver todas</a>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for a in recent_alerts %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ a.device.name }}</strong><br>
+                            <small class="text-muted">{{ a.message }}</small>
+                        </div>
+                        <div>
+                            {% if a.priority == "grave" %}
+                            <span class="badge bg-dark">Grave</span>
+                            {% elif a.priority == "alto" %}
+                            <span class="badge bg-secondary">Alto</span>
+                            {% elif a.priority == "medio" %}
+                            <span class="badge bg-light text-dark">Medio</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark">{{ a.priority }}</span>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item">No alerts available</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispositivos con filtros -->
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between">
+            <span>Dispositivos</span>
+            <a href="{% url 'device_list' %}">Ir a listado</a>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row mb-3">
+                <div class="col-md-5">
+                    <select name="category" class="form-select">
+                        <option value="all">Todas las Categorías</option>
+                        {% for c in categories %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <select name="zone" class="form-select">
+                        <option value="all">Todas las Zonas</option>
+                        {% for z in zones %}
+                        <option value="{{ z.id }}">{{ z.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-dark w-100">Aplicar filtros</button>
+                </div>
+            </form>
+
+            <div class="row">
+                {% for d in devices %}
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ d.name }}</h5>
+                            <p class="card-text">{{ d.category.name }} • {{ d.zone.name }}</p>
+                            <a href="{% url 'device_detail' d.id %}" class="btn btn-outline-primary btn-sm">Ver
+                                detalles</a>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p>No hay dispositivos disponibles</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

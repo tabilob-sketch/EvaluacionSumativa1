@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">Todas las Alertas</h2>
+
+  <a href="javascript:history.back()" class="btn btn-secondary mb-3">⬅ Volver</a>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Fecha/Hora</th>
+        <th>Dispositivo</th>
+        <th>Mensaje</th>
+        <th>Prioridad</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in alerts %}
+      <tr>
+        <td>{{ a.created_at }}</td>
+        <td>{{ a.device.name }}</td>
+        <td>{{ a.message }}</td>
+        <td>
+          {% if a.priority == "grave" %}
+            <span class="badge bg-danger">Grave</span>
+          {% elif a.priority == "alto" %}
+            <span class="badge bg-warning text-dark">Alto</span>
+          {% elif a.priority == "medio" %}
+            <span class="badge bg-secondary">Medio</span>
+          {% else %}
+            <span class="badge bg-light text-dark">{{ a.priority }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4">No hay alertas registradas</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

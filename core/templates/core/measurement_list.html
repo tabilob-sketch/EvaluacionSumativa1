@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Listado de Mediciones{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">Todas las Mediciones</h2>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Fecha/Hora</th>
+        <th>Dispositivo</th>
+        <th>Valor</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in measurements %}
+        <tr>
+          <td>{{ m.created_at }}</td>
+          <td>{{ m.device.name }}</td>
+          <td>{{ m.value }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">No hay mediciones disponibles</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
