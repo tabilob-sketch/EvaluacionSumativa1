@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle del dispositivo{% endblock %}
+
+{% block content %}
+<h2>{{ device.name }}</h2>
+
+<p><strong>Categoría:</strong> {{ device.category.name }}</p>
+<p><strong>Zona:</strong> {{ device.zone.name }}</p>
+
+<hr>
+
+<h4>Últimas mediciones</h4>
+<ul>
+    {% for m in measurements %}
+        <li>{{ m.created_at|date:"d/m/Y H:i" }} → {{ m.value }}</li>
+    {% empty %}
+        <li>No hay mediciones registradas.</li>
+    {% endfor %}
+</ul>
+
+<hr>
+
+<h4>Últimas alertas</h4>
+<ul>
+    {% for a in alerts %}
+        <li>{{ a.created_at|date:"d/m/Y H:i" }} → {{ a.message }}</li>
+    {% empty %}
+        <li>No hay alertas registradas.</li>
+    {% endfor %}
+</ul>
+
+<a href="{% url 'device_list' %}" class="btn btn-secondary mt-3">Volver al listado</a>
+{% endblock %}
