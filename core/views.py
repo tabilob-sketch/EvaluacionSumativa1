@@ -5,6 +5,8 @@ from datetime import timedelta
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
+from django.contrib.auth.models import User
+
 
 
 
@@ -104,6 +106,25 @@ def login_view(request):
     return render(request, "core/login.html")
 
 def register_view(request):
-    return render(request, 'core/register.html')
+    if request.method == "POST":
+        company_name = request.POST.get("company_name")
+        email = request.POST.get("email")
+        password = request.POST.get("password")
+
+        if User.objects.filter(username=email).exists():
+            messages.error(request, "Ya existe un usuario con este correo.")
+        else:
+            # Crear la empresa
+            from .models import Organization
+            org = Organization.objects.create(name=company_name)
+
+            # Crear usuario
+            user = User.objects.create_user(username=email, email=email, password=password)
+            user.save()
+
+            messages.success(request, "Registro exitoso. Ahora puedes iniciar sesión.")
+            return redirect("login")
+
+    return render(request, "core/register.html")
 
 
