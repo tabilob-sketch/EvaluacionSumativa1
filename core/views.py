@@ -2,6 +2,9 @@ from django.shortcuts import render, get_object_or_404
 from .models import Device, Measurement, Alert, Category, Zone
 from django.utils import timezone
 from datetime import timedelta
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login
+from django.contrib import messages
 
 
 
@@ -86,7 +89,19 @@ def alerts_week(request):
     return render(request, "core/alerts_week.html", {"alerts": alerts})
 
 def login_view(request):
-    return render(request, 'core/login.html')
+    if request.method == "POST":
+        email = request.POST.get("email")
+        password = request.POST.get("password")
+
+        # Autenticación
+        user = authenticate(request, username=email, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect("dashboard")  
+        else:
+            messages.error(request, "Credenciales inválidas, intenta de nuevo.")
+
+    return render(request, "core/login.html")
 
 def register_view(request):
     return render(request, 'core/register.html')
