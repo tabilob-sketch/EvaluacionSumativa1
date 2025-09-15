@@ -24,7 +24,7 @@
 <h4>Últimas alertas</h4>
 <ul>
     {% for a in alerts %}
-        <li>{{ a.created_at|date:"d/m/Y H:i" }} → {{ a.message }}</li>
+        <li>{{ a.created_at|date:"d/m/Y H:i" }} → {{ a.message }} ({{ a.priority }})</li>
     {% empty %}
         <li>No hay alertas registradas.</li>
     {% endfor %}
