@@ -1,5 +1,8 @@
 from django.shortcuts import render, get_object_or_404
 from .models import Device, Measurement, Alert, Category, Zone
+from django.utils import timezone
+from datetime import timedelta
+
 
 
 
@@ -75,8 +78,17 @@ def measurement_list(request):
 def alert_list(request):
     alerts = Alert.objects.select_related("device").order_by("-created_at")
     return render(request, "core/alert_list.html", {"alerts": alerts})
+def alerts_week(request):
+    today = timezone.now()
+    week_ago = today - timedelta(days=7)
+    alerts = Alert.objects.filter(created_at__gte=week_ago).order_by("-created_at")
+
+    return render(request, "core/alerts_week.html", {"alerts": alerts})
+
 def login_view(request):
     return render(request, 'core/login.html')
 
 def register_view(request):
     return render(request, 'core/register.html')
+
+

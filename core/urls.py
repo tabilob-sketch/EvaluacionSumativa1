@@ -9,4 +9,5 @@ urlpatterns = [
     path("alerts/", views.alert_list, name="alert_list"),   
     path('login/', views.login_view, name='login'),        
     path('register/', views.register_view, name='register'),  
+    path("alerts/week/", views.alerts_week, name="alerts_week"),
 ]

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Alertas de la semana{% endblock %}
+
+{% block content %}
+<h2>Alertas de la semana</h2>
+
+<ul class="list-group">
+  {% for alert in alerts %}
+    <li class="list-group-item">
+      <strong>{{ alert.device.name }}</strong> - {{ alert.priority }} <br>
+      {{ alert.message }} <br>
+      <small>{{ alert.created_at }}</small>
+    </li>
+  {% empty %}
+    <li class="list-group-item">No hay alertas en la última semana.</li>
+  {% endfor %}
+</ul>
+{% endblock %}
