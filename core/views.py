@@ -127,4 +127,12 @@ def register_view(request):
 
     return render(request, "core/register.html")
 
+def password_reset_view(request):
+    if request.method == "POST":
+        email = request.POST.get("email")
+        messages.success(request, f"Se enviaron instrucciones de recuperación al correo {email} (simulado).")
+        return redirect("login")  
+
+    return render(request, "core/password_reset.html")
+
 
