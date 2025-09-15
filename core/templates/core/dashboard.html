@@ -37,11 +37,14 @@
 
         <div class="col-md-4">
             <div class="card">
-                <div class="card-header">Alertas de la Semana</div>
-                <div class="card-body">
-                    <span class="badge bg-danger">Grave: 2</span>
-                    <span class="badge bg-warning text-dark">Alto: 5</span>
-                    <span class="badge bg-secondary">Mediano: 9</span>
+               <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Alertas de la Semana</span>
+            <a href="{% url 'alerts_week' %}" class="btn btn-sm btn-outline-primary">Ver todas</a>
+        </div>
+        <div class="card-body">
+            <span class="badge bg-danger">Grave: 2</span>
+            <span class="badge bg-warning text-dark">Alto: 5</span>
+            <span class="badge bg-secondary">Mediano: 9</span>
                 </div>
             </div>
         </div>
