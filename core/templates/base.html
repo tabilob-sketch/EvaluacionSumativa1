@@ -32,6 +32,9 @@
         <div class="d-flex">
           {% if user.is_authenticated %}
             <span class="text-light me-2 small">Hola, {{ user.username }}</span>
+            {% if user.is_staff %}
+  <a href="/admin/" class="btn btn-warning me-2">Panel Admin</a>
+{% endif %}
             <a href="{% url 'logout' %}" class="btn btn-outline-light">Salir</a>
           {% else %}
             <a href="{% url 'login' %}" class="btn btn-outline-light me-2">Iniciar sesión</a>
