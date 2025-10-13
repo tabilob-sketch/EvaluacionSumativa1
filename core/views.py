@@ -28,7 +28,7 @@ def _user_org_or_none(user):
 
 @login_required
 def dashboard(request):
-    org = _user_org_or_none(request.user)
+    org = _user_org_or_none(request.user)  
 
     categories = Category.objects.all()
     zones = Zone.objects.all()
@@ -36,7 +36,7 @@ def dashboard(request):
         categories = categories.filter(organization=org)
         zones = zones.filter(organization=org)
 
-    # Base de devices ya scoped por org
+    # Devices base filtrados por org
     devices_qs = Device.objects.select_related("category", "zone", "organization")
     if org:
         devices_qs = devices_qs.filter(organization=org)
@@ -44,24 +44,29 @@ def dashboard(request):
     devices_by_category = {c.name: devices_qs.filter(category=c).count() for c in categories}
     devices_by_zone = {z.name: devices_qs.filter(zone=z).count() for z in zones}
 
-    latest_measurements = Measurement.objects.order_by("-created_at")[:10]
-    recent_alerts = Alert.objects.order_by("-created_at")[:5]
+    # Construye el queryset, filtra (si aplica) y recién ahí corta
+    latest_measurements_qs = Measurement.objects.select_related("device").order_by("-created_at")
     if org:
-        latest_measurements = latest_measurements.filter(device__organization=org)
-        recent_alerts = recent_alerts.filter(device__organization=org)
+        latest_measurements_qs = latest_measurements_qs.filter(device__organization=org)
+    latest_measurements = latest_measurements_qs[:10]
 
-    # Contar alertas de la semana por prioridad
+    recent_alerts_qs = Alert.objects.select_related("device").order_by("-created_at")
+    if org:
+        recent_alerts_qs = recent_alerts_qs.filter(device__organization=org)
+    recent_alerts = recent_alerts_qs[:5]
+
+    # Contadores semanales por prioridad (filtra antes)
     now = timezone.now()
     week_ago = now - timedelta(days=7)
-    weekly_alerts = Alert.objects.filter(created_at__gte=week_ago)
+    weekly_alerts_qs = Alert.objects.filter(created_at__gte=week_ago)
     if org:
-        weekly_alerts = weekly_alerts.filter(device__organization=org)
+        weekly_alerts_qs = weekly_alerts_qs.filter(device__organization=org)
 
-    grave_count = weekly_alerts.filter(priority="grave").count()
-    alto_count = weekly_alerts.filter(priority="alto").count()
-    medio_count = weekly_alerts.filter(priority="medio").count()
+    grave_count = weekly_alerts_qs.filter(priority="grave").count()
+    alto_count  = weekly_alerts_qs.filter(priority="alto").count()
+    medio_count = weekly_alerts_qs.filter(priority="medio").count()
 
-    # Filtros para el grid de dispositivos en el dashboard
+    # Filtros del grid de dispositivos del dashboard
     category_id = request.GET.get("category")
     zone_id = request.GET.get("zone")
 
@@ -84,6 +89,7 @@ def dashboard(request):
         "devices": devices,
     }
     return render(request, "core/dashboard.html", context)
+
 
 
 @login_required
