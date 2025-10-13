@@ -100,15 +100,19 @@ class Alert(models.Model):
     device = models.ForeignKey("Device", on_delete=models.CASCADE)
     message = models.TextField()
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default="medio")
+    acknowledged = models.BooleanField(default=False)  # NUEVO
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.device.name} - {self.priority}"
 
+
+
 class Account(models.Model):
     class Role(models.TextChoices):
-        ORG_ADMIN = "org_admin", "Organization Admin"
-        MEMBER = "member", "Member"
+        ORG_ADMIN = "ORG_ADMIN", "Org Admin"
+        VERIFIER  = "VERIFIER", "Verifier"
+        MEMBER    = "MEMBER", "Member"
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="account")
     organization = models.ForeignKey("Organization", on_delete=models.PROTECT, null=True, blank=True)
@@ -116,6 +120,6 @@ class Account(models.Model):
 
     def __str__(self):
         org = self.organization.name if self.organization else "No org"
-        return f"{self.user.username} ({org}) - {self.get_role_display()}"
+        return f"{self.user.username} ({org}) — {self.role}"
 
     

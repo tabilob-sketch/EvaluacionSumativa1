@@ -271,14 +271,19 @@ def mark_as_acknowledged(modeladmin, request, queryset):
 
 @admin.register(Alert)
 class AlertAdmin(OrgScopedAdmin):
-    list_display = ("id", "device", "priority", "created_at")
-    list_display_links = ("id",)
+    list_display = ("id", "device", "priority", "acknowledged", "created_at")
     list_select_related = ("device",)
-    list_filter = ("priority", "device__organization")
+    list_filter = ("priority", "acknowledged", "device__organization")
     search_fields = ("device__name", "message")
     ordering = ("-created_at",)
-    actions = [mark_priority_high, export_alerts_csv]  #  acciones
-    actions = [mark_as_acknowledged]
+
+    actions = ["mark_as_acknowledged"]
+
+    def mark_as_acknowledged(self, request, queryset):
+        updated = queryset.update(acknowledged=True)
+        self.message_user(request, f"{updated} alerta(s) marcadas como atendidas.")
+    mark_as_acknowledged.short_description = " Marcar alertas seleccionadas como atendidas"
+
 
 
 
