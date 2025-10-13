@@ -5,5 +5,12 @@ from .models import Account
 
 @receiver(post_save, sender=User)
 def create_account_for_user(sender, instance, created, **kwargs):
+    """
+    Cuando se crea un User, generar su Account asociado automáticamente
+    si no existe. Quedará con organization=None y rol MEMBER.
+    """
     if created:
-        Account.objects.create(user=instance)
+        Account.objects.get_or_create(
+            user=instance,
+            defaults={"organization": None, "role": Account.Role.MEMBER}
+        )
