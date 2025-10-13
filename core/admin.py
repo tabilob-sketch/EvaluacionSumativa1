@@ -3,6 +3,7 @@ from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.models import User
 from .models import Organization, Category, Zone, Device, Measurement, Alert, Account
 
+
 # =======================
 # Helpers de rol / org
 # =======================
@@ -207,6 +208,12 @@ class ZoneAdmin(OrgScopedAdmin):
     search_fields = ("name", "organization__name")
     ordering = ("name",)
 
+class MeasurementInline(admin.TabularInline):
+    model = Measurement
+    extra = 0
+    fields = ("value", "created_at")
+    readonly_fields = ("created_at",)
+    can_delete = True
 
 @admin.register(Device)
 class DeviceAdmin(OrgScopedAdmin):
@@ -216,6 +223,7 @@ class DeviceAdmin(OrgScopedAdmin):
     list_filter = ("organization", "category", "zone")
     search_fields = ("name", "category__name", "zone__name", "organization__name")
     ordering = ("name",)
+    inlines = [MeasurementInline]  #  Inline agregado
 
 
 @admin.register(Measurement)
@@ -227,6 +235,24 @@ class MeasurementAdmin(OrgScopedAdmin):
     search_fields = ("device__name",)
     ordering = ("-created_at",)
 
+from django.http import HttpResponse
+import csv                   #csv aca
+
+@admin.action(description="Marcar prioridad como ALTA (alto)")
+def mark_priority_high(modeladmin, request, queryset):
+    updated = queryset.update(priority="alto")
+    modeladmin.message_user(request, f"{updated} alertas actualizadas a prioridad ALTA.")
+
+@admin.action(description="Exportar seleccionadas a CSV")
+def export_alerts_csv(modeladmin, request, queryset):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = "attachment; filename=alerts.csv"
+    writer = csv.writer(response)
+    writer.writerow(["ID", "Device", "Priority", "Message", "Created At"])
+    for a in queryset.select_related("device"):
+        writer.writerow([a.id, a.device.name, a.priority, a.message, a.created_at.isoformat()])
+    return response
+
 
 @admin.register(Alert)
 class AlertAdmin(OrgScopedAdmin):
@@ -236,6 +262,8 @@ class AlertAdmin(OrgScopedAdmin):
     list_filter = ("priority", "device__organization")
     search_fields = ("device__name", "message")
     ordering = ("-created_at",)
+    actions = [mark_priority_high, export_alerts_csv]  #  acciones
+
 
 
 @admin.register(Account)
