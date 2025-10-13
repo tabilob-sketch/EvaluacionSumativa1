@@ -28,10 +28,15 @@
           </li>
         </ul>
 
-        <!-- Botones de login/registro -->
+        <!-- Botones según sesión -->
         <div class="d-flex">
-          <a href="{% url 'login' %}" class="btn btn-outline-light me-2">Iniciar sesión</a>
-          <a href="{% url 'register' %}" class="btn btn-light">Registrarse</a>
+          {% if user.is_authenticated %}
+            <span class="text-light me-2 small">Hola, {{ user.username }}</span>
+            <a href="{% url 'logout' %}" class="btn btn-outline-light">Salir</a>
+          {% else %}
+            <a href="{% url 'login' %}" class="btn btn-outline-light me-2">Iniciar sesión</a>
+            <a href="{% url 'register' %}" class="btn btn-light">Registrarse</a>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -47,7 +52,4 @@
 </body>
 </html>
 
-{% if request.user.is_authenticated %}
-  <a class="btn btn-outline-secondary btn-sm" href="{% url 'logout' %}">Salir</a>
-{% endif %}
 

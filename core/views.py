@@ -234,4 +234,9 @@ def password_reset_view(request):
 
     return render(request, "core/password_reset.html")
 
+def logout_view(request):
+    logout(request)
+    return redirect("login")
+
+
 
