@@ -234,11 +234,16 @@ class DeviceAdmin(OrgScopedAdmin):
 @admin.register(Measurement)
 class MeasurementAdmin(OrgScopedAdmin):
     list_display = ("id", "device", "value", "created_at")
-    list_display_links = ("id",)
     list_select_related = ("device",)
     list_filter = ("device__organization",)
     search_fields = ("device__name",)
     ordering = ("-created_at",)
+
+    def save_model(self, request, obj, form, change):
+        # Ejecuta validaciones personalizadas definidas en clean()
+        obj.full_clean()
+        super().save_model(request, obj, form, change)
+
 
 from django.http import HttpResponse
 import csv                   #csv aca
