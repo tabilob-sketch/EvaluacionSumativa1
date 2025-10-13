@@ -198,30 +198,23 @@ from .models import Organization, Account
 
 def register_view(request):
     if request.method == "POST":
-        company_name = request.POST.get("company_name")
         email = request.POST.get("email")
         password = request.POST.get("password")
 
-        if not company_name:
-            messages.error(request, "Debes indicar el nombre de tu empresa.")
+        if not email or not password:
+            messages.error(request, "Debes indicar correo y contraseña.")
             return render(request, "core/register.html")
 
         if User.objects.filter(username=email).exists():
             messages.error(request, "Ya existe un usuario con este correo.")
-        else:
-            org, _ = Organization.objects.get_or_create(name=company_name.strip())
-            user = User.objects.create_user(username=email, email=email, password=password)
+            return render(request, "core/register.html")
 
-            # vincula la org al Account del usuario
-            account = getattr(user, "account", None)
-            if account is None:
-                account = Account.objects.create(user=user, organization=org)
-            else:
-                account.organization = org
-                account.save()
+        # Crear el usuario SIN pedir empresa (Organization se asigna después en el Admin)
+        user = User.objects.create_user(username=email, email=email, password=password)
+        user.save()
 
-            messages.success(request, "Registro exitoso. Ahora puedes iniciar sesión.")
-            return redirect("login")
+        messages.success(request, "Registro exitoso. Ahora puedes iniciar sesión.")
+        return redirect("login")
 
     return render(request, "core/register.html")
 
