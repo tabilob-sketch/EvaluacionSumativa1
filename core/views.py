@@ -204,11 +204,8 @@ def register_view(request):
         if User.objects.filter(username=email).exists():
             messages.error(request, "Ya existe un usuario con este correo.")
         else:
-            # ✅ Crear el usuario sin organización
+            # Solo crea el usuario. El Account lo crea el signal post_save(User).
             user = User.objects.create_user(username=email, email=email, password=password)
-
-            # ✅ Crear la cuenta asociada pero sin organización
-            Account.objects.create(user=user, organization=None, role=Account.Role.MEMBER)
 
             messages.success(request, "Registro exitoso. Ahora puedes iniciar sesión.")
             return redirect("login")
