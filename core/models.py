@@ -100,11 +100,15 @@ class Alert(models.Model):
     device = models.ForeignKey("Device", on_delete=models.CASCADE)
     message = models.TextField()
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default="medio")
-    acknowledged = models.BooleanField(default=False)  # NUEVO
+
+    # NUEVO -> requerido por el Admin y la acción
+    acknowledged = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.device.name} - {self.priority}"
+
 
 
 
