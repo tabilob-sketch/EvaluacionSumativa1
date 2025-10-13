@@ -210,7 +210,8 @@ class AlertAdmin(OrgScopedAdmin):
 
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "organization")  
+    list_display = ("id", "user", "organization", "role")
     list_select_related = ("user", "organization")
     search_fields = ("user__username", "user__email", "organization__name")
-    list_filter = ("organization",) 
+    list_filter = ("organization", "role")
+
