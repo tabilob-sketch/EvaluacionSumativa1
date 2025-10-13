@@ -258,6 +258,11 @@ def export_alerts_csv(modeladmin, request, queryset):
         writer.writerow([a.id, a.device.name, a.priority, a.message, a.created_at.isoformat()])
     return response
 
+@admin.action(description="Marcar como atendidas")
+def mark_as_acknowledged(modeladmin, request, queryset):
+    updated = queryset.update(acknowledged=True)
+    modeladmin.message_user(request, f"{updated} alerta(s) marcadas como atendidas.")
+
 
 @admin.register(Alert)
 class AlertAdmin(OrgScopedAdmin):
@@ -268,6 +273,7 @@ class AlertAdmin(OrgScopedAdmin):
     search_fields = ("device__name", "message")
     ordering = ("-created_at",)
     actions = [mark_priority_high, export_alerts_csv]  #  acciones
+    actions = [mark_as_acknowledged]
 
 
 
