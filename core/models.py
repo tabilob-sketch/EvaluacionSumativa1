@@ -68,12 +68,18 @@ class Alert(models.Model):
 
     def __str__(self):
         return f"{self.device.name} - {self.priority}"
-    
 
 class Account(models.Model):
+    class Role(models.TextChoices):
+        ORG_ADMIN = "org_admin", "Organization Admin"
+        MEMBER = "member", "Member"
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="account")
-    organization = models.ForeignKey(Organization, on_delete=models.PROTECT, null=True, blank=True)
-   
+    organization = models.ForeignKey("Organization", on_delete=models.PROTECT, null=True, blank=True)
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.MEMBER)
+
     def __str__(self):
-        return f"{self.user.username} ({self.organization.name if self.organization else 'No org'})"
+        org = self.organization.name if self.organization else "No org"
+        return f"{self.user.username} ({org}) - {self.get_role_display()}"
+
     
