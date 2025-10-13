@@ -12,7 +12,7 @@ from .models import (
     Organization,  
     Account,       
 )
-
+from .models import Account
 
 # Helper: obtener la Organization del usuario (si no es superuser)
 
@@ -201,20 +201,17 @@ def register_view(request):
         email = request.POST.get("email")
         password = request.POST.get("password")
 
-        if not email or not password:
-            messages.error(request, "Debes indicar correo y contraseña.")
-            return render(request, "core/register.html")
-
         if User.objects.filter(username=email).exists():
             messages.error(request, "Ya existe un usuario con este correo.")
-            return render(request, "core/register.html")
+        else:
+            # ✅ Crear el usuario sin organización
+            user = User.objects.create_user(username=email, email=email, password=password)
 
-        # Crear el usuario SIN pedir empresa (Organization se asigna después en el Admin)
-        user = User.objects.create_user(username=email, email=email, password=password)
-        user.save()
+            # ✅ Crear la cuenta asociada pero sin organización
+            Account.objects.create(user=user, organization=None, role=Account.Role.MEMBER)
 
-        messages.success(request, "Registro exitoso. Ahora puedes iniciar sesión.")
-        return redirect("login")
+            messages.success(request, "Registro exitoso. Ahora puedes iniciar sesión.")
+            return redirect("login")
 
     return render(request, "core/register.html")
 
