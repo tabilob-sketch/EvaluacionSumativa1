@@ -21,12 +21,15 @@ def dashboard(request):
     latest_measurements = Measurement.objects.order_by("-created_at")[:10]
     recent_alerts = Alert.objects.order_by("-created_at")[:5]
 
-    #  calcular alertas de la semana
+    # ✅ Contar alertas de la semana por prioridad
     now = timezone.now()
     week_ago = now - timedelta(days=7)
-    weekly_alerts = Alert.objects.filter(created_at__gte=week_ago).order_by("-created_at")[:5]
+    weekly_alerts = Alert.objects.filter(created_at__gte=week_ago)
 
-    # filtros
+    grave_count = weekly_alerts.filter(priority="grave").count()
+    alto_count = weekly_alerts.filter(priority="alto").count()
+    medio_count = weekly_alerts.filter(priority="medio").count()
+
     category_id = request.GET.get("category")
     zone_id = request.GET.get("zone")
 
@@ -41,12 +44,15 @@ def dashboard(request):
         "devices_by_zone": devices_by_zone,
         "latest_measurements": latest_measurements,
         "recent_alerts": recent_alerts,
-        "weekly_alerts": weekly_alerts,  
+        "grave_count": grave_count,   # ✅
+        "alto_count": alto_count,     # ✅
+        "medio_count": medio_count,   # ✅
         "categories": categories,
         "zones": zones,
         "devices": devices,
     }
     return render(request, "core/dashboard.html", context)
+
 
 
 def device_list(request):
