@@ -35,20 +35,42 @@
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card">
-               <div class="card-header d-flex justify-content-between align-items-center">
+       <div class="col-md-4">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
             <span>Alertas de la Semana</span>
             <a href="{% url 'alerts_week' %}" class="btn btn-sm btn-outline-primary">Ver todas</a>
         </div>
         <div class="card-body">
-            <span class="badge bg-danger">Grave: 2</span>
-            <span class="badge bg-warning text-dark">Alto: 5</span>
-            <span class="badge bg-secondary">Mediano: 9</span>
-                </div>
-            </div>
+            {% if weekly_alerts %}
+                <ul class="list-group list-group-flush">
+                    {% for a in weekly_alerts %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ a.device.name }}</strong><br>
+                            <small class="text-muted">{{ a.message }}</small>
+                        </div>
+                        <div>
+                            {% if a.priority == "grave" %}
+                                <span class="badge bg-danger">Grave</span>
+                            {% elif a.priority == "alto" %}
+                                <span class="badge bg-warning text-dark">Alto</span>
+                            {% elif a.priority == "medio" %}
+                                <span class="badge bg-secondary">Mediano</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark">{{ a.priority }}</span>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="mb-0">No hay alertas en los últimos 7 días.</p>
+            {% endif %}
         </div>
     </div>
+</div>
+
 
     <!-- Últimas mediciones -->
     <div class="row mb-4">
