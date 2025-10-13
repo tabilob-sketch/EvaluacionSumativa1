@@ -188,6 +188,8 @@ def logout_view(request):
     return redirect("login")
 
 
+from .models import Organization, Account
+
 def register_view(request):
     if request.method == "POST":
         company_name = request.POST.get("company_name")
@@ -201,13 +203,10 @@ def register_view(request):
         if User.objects.filter(username=email).exists():
             messages.error(request, "Ya existe un usuario con este correo.")
         else:
-            # Crea o reutiliza la Organization
             org, _ = Organization.objects.get_or_create(name=company_name.strip())
-
-            # Crear usuario
             user = User.objects.create_user(username=email, email=email, password=password)
 
-            # Crear/actualizar su Account y asociar Organization
+            # vincula la org al Account del usuario
             account = getattr(user, "account", None)
             if account is None:
                 account = Account.objects.create(user=user, organization=org)
