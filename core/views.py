@@ -14,6 +14,12 @@ from .models import (
 )
 from .models import Account
 
+def _require_org_or_redirect(request):
+    return hasattr(request.user, "account") and request.user.account.organization is not None
+
+def no_org_view(request):
+    return render(request, "core/no_org.html")
+
 # Helper: obtener la Organization del usuario (si no es superuser)
 
 def _user_org_or_none(user):
@@ -28,6 +34,9 @@ def _user_org_or_none(user):
 
 @login_required
 def dashboard(request):
+    
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
     org = _user_org_or_none(request.user)  
 
     categories = Category.objects.all()
@@ -94,6 +103,10 @@ def dashboard(request):
 
 @login_required
 def device_list(request):
+
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+    
     org = _user_org_or_none(request.user)
 
     devices = Device.objects.select_related("category", "zone", "organization").all()
@@ -144,6 +157,10 @@ def device_detail(request, device_id):
 
 @login_required
 def measurement_list(request):
+
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+    
     org = _user_org_or_none(request.user)
     measurements = Measurement.objects.select_related("device").order_by("-created_at")
     if org:
@@ -153,6 +170,10 @@ def measurement_list(request):
 
 @login_required
 def alert_list(request):
+
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+    
     org = _user_org_or_none(request.user)
     alerts = Alert.objects.select_related("device").order_by("-created_at")
     if org:
@@ -162,6 +183,10 @@ def alert_list(request):
 
 @login_required
 def alerts_week(request):
+
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+    
     org = _user_org_or_none(request.user)
     today = timezone.now()
     week_ago = today - timedelta(days=7)

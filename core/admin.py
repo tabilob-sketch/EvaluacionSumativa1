@@ -169,10 +169,15 @@ class OrgScopedAdmin(admin.ModelAdmin):
             obj.organization = org
         super().save_model(request, obj, form, change)
 
+    def has_module_permission(self, request):
+        if request.user.is_superuser:
+            return True
+        # si no tiene organización, no ve el módulo en el index del admin
+        return bool(user_org(request.user))
 
-# ===========================
+
 # Admins por cada modelo core
-# ===========================
+
 @admin.register(Organization)
 class OrganizationAdmin(OrgScopedAdmin):
     # Si quieres que solo superuser edite Organizations, mantenlo así:
