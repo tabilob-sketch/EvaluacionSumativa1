@@ -1,10 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.models import User
-from django.contrib import messages
 from .models import Organization, Category, Zone, Device, Measurement, Alert, Account
 
-# Helpers de rol 
+# =======================
+# Helpers de rol / org
+# =======================
 def user_org(user):
     acc = getattr(user, "account", None)
     return acc.organization if acc and acc.organization_id else None
@@ -17,7 +18,10 @@ def is_member(user):
     acc = getattr(user, "account", None)
     return bool(acc and acc.role == Account.Role.MEMBER)
 
-# Inline para editar Organization/Role del usuario en la misma pantalla 
+
+# ==========================================
+# Inline para editar Account en el UserAdmin
+# ==========================================
 class AccountInline(admin.StackedInline):
     model = Account
     can_delete = False
@@ -26,23 +30,45 @@ class AccountInline(admin.StackedInline):
     fields = ("organization", "role")
     verbose_name_plural = "Account (Organization & Role)"
 
+
 class UserAdmin(DjangoUserAdmin):
     inlines = [AccountInline]
     list_display = ("username", "email", "is_staff", "is_superuser")
 
-# Reemplaza el admin de User para mostrar el inline
+    def has_add_permission(self, request):
+        if request.user.is_superuser:
+            return True
+        # Si quieres permitir que org_admin cree usuarios, cambia a True aquí:
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        # Si quisieras permitir que org_admin edite solo usuarios de su org, implementa aquí.
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        return False
+
+
+# Reemplaza el admin de User nativo
 admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
 
-#  Mixin de scoping + permisos por rol 
+
+# ==========================================
+# Mixin base: scoping por org + superuser libre
+# ==========================================
 class OrgScopedAdmin(admin.ModelAdmin):
     """
-    - Superuser: todo.
+    - Superuser: todo (sin restricciones).
     - Org Admin: CRUD solo dentro de su Organization.
-    - Member: solo lectura (read-only) de su Organization.
+    - Member: solo lectura de su Organization.
     """
 
-    # Filtra queryset por organization del usuario
+    # 1) Filtra queryset por Organization (no aplica a superuser)
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
@@ -52,7 +78,7 @@ class OrgScopedAdmin(admin.ModelAdmin):
         if not org:
             return qs.none()
 
-        # Modelos con FK directa a Organization
+        # FK directa a Organization
         if hasattr(self.model, "organization"):
             return qs.filter(organization=org)
 
@@ -62,24 +88,22 @@ class OrgScopedAdmin(admin.ModelAdmin):
 
         return qs.none()
 
-    # Controla permisos por rol
+    # 2) Permisos CRUD
     def has_view_permission(self, request, obj=None):
         if request.user.is_superuser:
             return True
-        # si tiene Account y org, puede ver su org
         return bool(user_org(request.user))
 
     def has_add_permission(self, request):
         if request.user.is_superuser:
             return True
-        # Org Admin puede crear dentro de su org
+        # Permite alta a org_admin
         return is_org_admin(request.user)
 
     def has_change_permission(self, request, obj=None):
         if request.user.is_superuser:
             return True
         if is_org_admin(request.user):
-            # solo si el objeto es de su org
             if obj is None:
                 return True
             org = user_org(request.user)
@@ -90,21 +114,21 @@ class OrgScopedAdmin(admin.ModelAdmin):
         return False  # member read-only
 
     def has_delete_permission(self, request, obj=None):
-        # Igual que change
+        if request.user.is_superuser:
+            return True
+        # Solo org_admin y dentro de su org
         return self.has_change_permission(request, obj)
 
-    # Limitar FKs a la Organization del usuario (para formularios)
+    # 3) Limitar choices de ForeignKey por org (no aplica a superuser)
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if request.user.is_superuser:
             return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
         org = user_org(request.user)
         if not org:
-            # Sin org  no ver opciones
-            kwargs["queryset"] = self._empty_qs_for_field(db_field)
+            kwargs["queryset"] = db_field.remote_field.model.objects.none()
             return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-        # Filtrar choices según el campo
         model = db_field.remote_field.model
         try:
             if model is Organization:
@@ -119,99 +143,107 @@ class OrgScopedAdmin(admin.ModelAdmin):
             pass
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-    def _empty_qs_for_field(self, db_field):
-        return db_field.remote_field.model.objects.none()
-
-    #  Hacer read-only algunos campos para org_admin y member
+    # 4) Read-only fields
     def get_readonly_fields(self, request, obj=None):
+        # Superuser: NINGÚN campo readonly
         if request.user.is_superuser:
-            return super().get_readonly_fields(request, obj)
-
+            return []
         ro = list(super().get_readonly_fields(request, obj))
-
-        # Member: todo read-only
         if is_member(request.user):
-            # Devuelve todos los campos como read-only
+            # Member: todo readonly
             if obj:
                 return [f.name for f in obj._meta.fields]
-            # en add_view member no debería poder llegar (has_add_permission=False)
             return ro
-
-        # Org Admin: organization no se puede cambiar (se setea automáticamente)
+        # Org Admin: organization no editable directamente (se setea en save)
         if "organization" in [f.name for f in self.model._meta.fields]:
             ro.append("organization")
         return ro
 
-    #  Setear organization automáticamente en add/save para org_admin
+    # 5) Setear organization automáticamente para org_admin
     def save_model(self, request, obj, form, change):
         if request.user.is_superuser:
             return super().save_model(request, obj, form, change)
-
         org = user_org(request.user)
         if hasattr(obj, "organization") and org:
             obj.organization = org
         super().save_model(request, obj, form, change)
 
-# ---------- Admins por modelo ----------
+
+# ===========================
+# Admins por cada modelo core
+# ===========================
 @admin.register(Organization)
 class OrganizationAdmin(OrgScopedAdmin):
-    # OJO: en muchos multi-tenant, Organization solo la edita superuser.
-    # Si quieres eso, sobreescribe:
-    def has_add_permission(self, request):  # solo superuser
+    # Si quieres que solo superuser edite Organizations, mantenlo así:
+    def has_add_permission(self, request):
         return request.user.is_superuser
-    def has_change_permission(self, request, obj=None):  # solo superuser
+    def has_change_permission(self, request, obj=None):
         return request.user.is_superuser
-    def has_delete_permission(self, request, obj=None):  # solo superuser
+    def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
 
     list_display = ("id", "name", "created_at", "updated_at")
+    list_display_links = ("name",)  # ← link a formulario de cambio
     search_fields = ("name",)
     ordering = ("name",)
+
 
 @admin.register(Category)
 class CategoryAdmin(OrgScopedAdmin):
     list_display = ("id", "name", "organization", "created_at")
+    list_display_links = ("name",)
     list_select_related = ("organization",)
     list_filter = ("organization",)
     search_fields = ("name", "organization__name")
     ordering = ("name",)
+
 
 @admin.register(Zone)
 class ZoneAdmin(OrgScopedAdmin):
     list_display = ("id", "name", "organization", "created_at")
+    list_display_links = ("name",)
     list_select_related = ("organization",)
     list_filter = ("organization",)
     search_fields = ("name", "organization__name")
     ordering = ("name",)
 
+
 @admin.register(Device)
 class DeviceAdmin(OrgScopedAdmin):
     list_display = ("id", "name", "category", "zone", "organization", "created_at")
+    list_display_links = ("name",)
     list_select_related = ("category", "zone", "organization")
     list_filter = ("organization", "category", "zone")
     search_fields = ("name", "category__name", "zone__name", "organization__name")
     ordering = ("name",)
 
+
 @admin.register(Measurement)
 class MeasurementAdmin(OrgScopedAdmin):
     list_display = ("id", "device", "value", "created_at")
+    list_display_links = ("id",)
     list_select_related = ("device",)
     list_filter = ("device__organization",)
     search_fields = ("device__name",)
     ordering = ("-created_at",)
 
+
 @admin.register(Alert)
 class AlertAdmin(OrgScopedAdmin):
     list_display = ("id", "device", "priority", "created_at")
+    list_display_links = ("id",)
     list_select_related = ("device",)
     list_filter = ("priority", "device__organization")
     search_fields = ("device__name", "message")
     ordering = ("-created_at",)
 
+
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "organization", "role")
+    list_display_links = ("user",)   # clic en user para editar Account
     list_select_related = ("user", "organization")
     search_fields = ("user__username", "user__email", "organization__name")
     list_filter = ("organization", "role")
+
 
