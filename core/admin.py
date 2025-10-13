@@ -46,3 +46,9 @@ class AlertAdmin(admin.ModelAdmin):
     list_filter = ("priority", "device__organization")
     ordering = ("-created_at",)
     list_select_related = ("device", "device__organization")
+
+class AccountAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "organization")
+    list_select_related = ("user", "organization")
+    search_fields = ("user__username", "user__email", "organization__name")
+    list_filter = ("organization",)
