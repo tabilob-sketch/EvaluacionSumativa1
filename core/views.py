@@ -15,7 +15,11 @@ from .models import (
 from .models import Account
 
 def _require_org_or_redirect(request):
+    # Superuser puede acceder siempre, aunque no tenga organization
+    if request.user.is_superuser:
+        return True
     return hasattr(request.user, "account") and request.user.account.organization is not None
+
 
 def no_org_view(request):
     return render(request, "core/no_org.html")
