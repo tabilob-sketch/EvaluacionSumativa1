@@ -1,17 +1,21 @@
-#from django.shortcuts import render, get_object_or_404, redirect
+# core/device_views.py
+
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 
 from .models import Device, Measurement, Alert, Category, Zone
 from .forms import DeviceForm
-from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
 
+# Importamos helpers que ya definiste en views.py
+from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
 
 
 @login_required
 def device_list(request):
     """
-    Listado de dispositivos filtrado por organización del usuario.
+    Lista de dispositivos, filtrados por organización del usuario.
+    Admin ve botón de crear, lector solo ve la lista.
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
@@ -41,6 +45,7 @@ def device_list(request):
         "zones": zones,
         "selected_category": category_id,
         "selected_zone": zone_id,
+        "can_manage_devices": _can_manage_devices(request.user),
     }
     return render(request, "core/device_list.html", context)
 
@@ -48,16 +53,17 @@ def device_list(request):
 @login_required
 def device_detail(request, device_id):
     """
-    Detalle de un dispositivo, mostrando mediciones y alertas recientes.
+    Detalle de un dispositivo.
+    Admin verá botones de editar/eliminar, lector no.
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
     org = _user_org_or_none(request.user)
-
     base = Device.objects.select_related("category", "zone", "organization")
     if org:
         base = base.filter(organization=org)
+
     device = get_object_or_404(base, id=device_id)
 
     measurements = Measurement.objects.filter(device=device).order_by("-created_at")[:20]
@@ -67,6 +73,7 @@ def device_detail(request, device_id):
         "device": device,
         "measurements": measurements,
         "alerts": alerts,
+        "can_manage_devices": _can_manage_devices(request.user),
     }
     return render(request, "core/device_detail.html", context)
 
@@ -74,39 +81,59 @@ def device_detail(request, device_id):
 @login_required
 def device_create(request):
     """
-    Crea un nuevo Device dentro de la organización del usuario.
-    - Usa DeviceForm.
-    - Asigna organization automáticamente según el usuario.
-    - Sólo ADMIN / VERIFIER pueden crear.
+    Crea un nuevo Device.
+    - Solo admin puede crear.
+    - Se asigna automáticamente la organización según el usuario.
+      Si es superuser, se usa la organización de la categoría elegida.
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
-    org = _user_org_or_none(request.user)
-    if org is None:
-        messages.error(request, "No tienes una organización asociada.")
-        return redirect("dashboard")
-
     if not _can_manage_devices(request.user):
-        messages.error(request, "No tienes permisos para crear dispositivos.")
+        messages.error(request, "No tienes permiso para crear dispositivos.")
         return redirect("device_list")
+
+    org = _user_org_or_none(request.user)
 
     if request.method == "POST":
         form = DeviceForm(request.POST)
-        # limitamos a la organización del usuario
-        form.fields["category"].queryset = Category.objects.filter(organization=org)
-        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+
+        # Opciones de category/zone según organización
+        if org:
+            form.fields["category"].queryset = Category.objects.filter(organization=org)
+            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        else:
+            form.fields["category"].queryset = Category.objects.all()
+            form.fields["zone"].queryset = Zone.objects.all()
 
         if form.is_valid():
             device = form.save(commit=False)
-            device.organization = org  # muy importante: scoping por org
+
+            if org:
+                # Usuario normal: organización fija
+                device.organization = org
+            else:
+                # Superuser: inferimos la org desde la categoría
+                if device.category and device.category.organization_id:
+                    device.organization_id = device.category.organization_id
+                else:
+                    messages.error(request, "No se pudo determinar la organización del dispositivo.")
+                    return render(request, "core/device_form.html", {
+                        "form": form,
+                        "mode": "create",
+                    })
+
             device.save()
             messages.success(request, "Dispositivo creado correctamente.")
             return redirect("device_list")
     else:
         form = DeviceForm()
-        form.fields["category"].queryset = Category.objects.filter(organization=org)
-        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        if org:
+            form.fields["category"].queryset = Category.objects.filter(organization=org)
+            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        else:
+            form.fields["category"].queryset = Category.objects.all()
+            form.fields["zone"].queryset = Zone.objects.all()
 
     return render(request, "core/device_form.html", {
         "form": form,
@@ -117,16 +144,17 @@ def device_create(request):
 @login_required
 def device_update(request, device_id):
     """
-    Edita un Device que pertenece a la organización del usuario.
-    Sólo ADMIN / VERIFIER pueden editar.
+    Edita un Device.
+    Solo admin puede editar.
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
-    org = _user_org_or_none(request.user)
     if not _can_manage_devices(request.user):
-        messages.error(request, "No tienes permisos para editar dispositivos.")
+        messages.error(request, "No tienes permiso para editar dispositivos.")
         return redirect("device_list")
+
+    org = _user_org_or_none(request.user)
 
     base = Device.objects.select_related("category", "zone", "organization")
     if org:
@@ -136,20 +164,43 @@ def device_update(request, device_id):
 
     if request.method == "POST":
         form = DeviceForm(request.POST, instance=device)
-        form.fields["category"].queryset = Category.objects.filter(organization=org)
-        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+
+        if org:
+            form.fields["category"].queryset = Category.objects.filter(organization=org)
+            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        else:
+            form.fields["category"].queryset = Category.objects.all()
+            form.fields["zone"].queryset = Zone.objects.all()
 
         if form.is_valid():
-            obj = form.save(commit=False)
+            device = form.save(commit=False)
+
             if org:
-                obj.organization = org
-            obj.save()
+                device.organization = org
+            else:
+                # superuser: organización igual a la de la categoría
+                if device.category and device.category.organization_id:
+                    device.organization_id = device.category.organization_id
+                else:
+                    messages.error(request, "No se pudo determinar la organización del dispositivo.")
+                    return render(request, "core/device_form.html", {
+                        "form": form,
+                        "mode": "edit",
+                        "device": device,
+                    })
+
+            device.save()
             messages.success(request, "Dispositivo actualizado correctamente.")
             return redirect("device_detail", device_id=device.id)
     else:
         form = DeviceForm(instance=device)
-        form.fields["category"].queryset = Category.objects.filter(organization=org)
-        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+
+        if org:
+            form.fields["category"].queryset = Category.objects.filter(organization=org)
+            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        else:
+            form.fields["category"].queryset = Category.objects.all()
+            form.fields["zone"].queryset = Zone.objects.all()
 
     return render(request, "core/device_form.html", {
         "form": form,
@@ -161,17 +212,17 @@ def device_update(request, device_id):
 @login_required
 def device_delete(request, device_id):
     """
-    Elimina un Device de la organización del usuario.
-    Sólo ADMIN / VERIFIER pueden eliminar.
+    Elimina un Device.
+    Solo admin puede eliminar.
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
-    org = _user_org_or_none(request.user)
     if not _can_manage_devices(request.user):
-        messages.error(request, "No tienes permisos para eliminar dispositivos.")
+        messages.error(request, "No tienes permiso para eliminar dispositivos.")
         return redirect("device_list")
 
+    org = _user_org_or_none(request.user)
     base = Device.objects.select_related("organization")
     if org:
         base = base.filter(organization=org)

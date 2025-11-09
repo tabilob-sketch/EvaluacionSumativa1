@@ -1,49 +1,77 @@
 {% extends "base.html" %}
 
-{% block title %}Categorías{% endblock %}
+{% block title %}Listado de Dispositivos{% endblock %}
 
 {% block content %}
-<h2 class="mb-3">Categorías</h2>
+<h2 class="mb-3">Dispositivos</h2>
 
-{% if request.user.is_authenticated and (request.user.is_superuser or request.user.account.role != "MEMBER") %}
-  <div class="mb-3">
-    <a href="{% url 'category_create' %}" class="btn btn-success">
-      + Nueva categoría
-    </a>
-  </div>
+{# Botón para crear nuevo dispositivo (solo admin o roles con permiso) #}
+{% if request.user.is_authenticated %}
+  {% if request.user.is_superuser or request.user.account.role != "MEMBER" %}
+    <div class="mb-3">
+      <a href="{% url 'device_create' %}" class="btn btn-success">
+        + Nuevo dispositivo
+      </a>
+    </div>
+  {% endif %}
 {% endif %}
 
-<table class="table table-striped">
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>Nombre</th>
-      <th>Acciones</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for c in categories %}
-    <tr>
-      <td>{{ c.id }}</td>
-      <td>{{ c.name }}</td>
-      <td>
-        {% if request.user.is_authenticated and (request.user.is_superuser or request.user.account.role != "MEMBER") %}
-          <a href="{% url 'category_update' c.id %}" class="btn btn-sm btn-outline-secondary">
-            Editar
-          </a>
-          <a href="{% url 'category_delete' c.id %}" class="btn btn-sm btn-outline-danger ms-1">
-            Eliminar
-          </a>
-        {% else %}
-          <span class="text-muted">Solo lectura</span>
-        {% endif %}
-      </td>
-    </tr>
-    {% empty %}
-    <tr>
-      <td colspan="3">No hay categorías registradas.</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<!-- Formulario de filtros -->
+<form method="get" class="row mb-4">
+  <div class="col-md-4">
+    <select name="category" class="form-select">
+      <option value="all" {% if selected_category == "all" %}selected{% endif %}>
+        Todas las Categorías
+      </option>
+      {% for c in categories %}
+      <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>
+        {{ c.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <select name="zone" class="form-select">
+      <option value="all" {% if selected_zone == "all" %}selected{% endif %}>
+        Todas las Zonas
+      </option>
+      {% for z in zones %}
+      <option value="{{ z.id }}" {% if selected_zone == z.id|stringformat:"s" %}selected{% endif %}>
+        {{ z.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <button type="submit" class="btn btn-dark w-100">Aplicar filtros</button>
+  </div>
+</form>
+
+<!-- Listado de dispositivos -->
+<div class="row">
+  {% for d in devices %}
+  <div class="col-md-4">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">{{ d.name }}</h5>
+        <p class="card-text">
+          Categoría: {{ d.category.name }} <br>
+          Zona: {{ d.zone.name }}
+        </p>
+        <a
+          class="btn btn-outline-primary btn-sm"
+          href="{% url 'device_detail' d.id %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+        >
+          Ver detalles
+        </a>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <p>No hay dispositivos disponibles</p>
+  {% endfor %}
+</div>
+
 {% endblock %}
