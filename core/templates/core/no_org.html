@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Sin Organización{% endblock %}
+
+{% block content %}
+<div class="container text-center mt-5">
+  <h2 class="text-danger mb-3">Acceso restringido</h2>
+
+  <p>
+    {{ mensaje|default:"Tu usuario no tiene una organización asociada. 
+    Contacta al administrador para que te asigne una." }}
+  </p>
+
+  <a href="{% url 'dashboard' %}" class="btn btn-primary mt-3">
+    Volver al inicio
+  </a>
+</div>
+{% endblock %}
+

@@ -5,6 +5,15 @@
 {% block content %}
 <h2 class="mb-3">Dispositivos</h2>
 
+{# Botón para crear nuevo dispositivo (oculto a MEMBER) #}
+{% if request.user.is_authenticated and (request.user.is_superuser or request.user.account.role != "MEMBER") %}
+  <div class="mb-3">
+    <a href="{% url 'device_create' %}" class="btn btn-success">
+      + Nuevo dispositivo
+    </a>
+  </div>
+{% endif %}
+
 <!-- Formulario de filtros -->
 <form method="get" class="row mb-4">
   <div class="col-md-4">
@@ -49,12 +58,28 @@
           Categoría: {{ d.category.name }} <br>
           Zona: {{ d.zone.name }}
         </p>
+
         <a
           class="btn btn-outline-primary btn-sm"
           href="{% url 'device_detail' d.id %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
         >
           Ver detalles
         </a>
+
+        {% if request.user.is_authenticated and (request.user.is_superuser or request.user.account.role != "MEMBER") %}
+          <a
+            href="{% url 'device_update' d.id %}"
+            class="btn btn-outline-secondary btn-sm ms-1"
+          >
+            Editar
+          </a>
+          <a
+            href="{% url 'device_delete' d.id %}"
+            class="btn btn-outline-danger btn-sm ms-1"
+          >
+            Eliminar
+          </a>
+        {% endif %}
       </div>
     </div>
   </div>

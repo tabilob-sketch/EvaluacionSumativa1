@@ -1,0 +1,188 @@
+#from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+
+from .models import Device, Measurement, Alert, Category, Zone
+from .forms import DeviceForm
+from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
+
+
+
+@login_required
+def device_list(request):
+    """
+    Listado de dispositivos filtrado por organización del usuario.
+    """
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+
+    org = _user_org_or_none(request.user)
+
+    devices = Device.objects.select_related("category", "zone", "organization").all()
+    categories = Category.objects.all()
+    zones = Zone.objects.all()
+
+    if org:
+        devices = devices.filter(organization=org)
+        categories = categories.filter(organization=org)
+        zones = zones.filter(organization=org)
+
+    category_id = request.GET.get("category", "all")
+    zone_id = request.GET.get("zone", "all")
+
+    if category_id != "all":
+        devices = devices.filter(category_id=category_id)
+    if zone_id != "all":
+        devices = devices.filter(zone_id=zone_id)
+
+    context = {
+        "devices": devices,
+        "categories": categories,
+        "zones": zones,
+        "selected_category": category_id,
+        "selected_zone": zone_id,
+    }
+    return render(request, "core/device_list.html", context)
+
+
+@login_required
+def device_detail(request, device_id):
+    """
+    Detalle de un dispositivo, mostrando mediciones y alertas recientes.
+    """
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+
+    org = _user_org_or_none(request.user)
+
+    base = Device.objects.select_related("category", "zone", "organization")
+    if org:
+        base = base.filter(organization=org)
+    device = get_object_or_404(base, id=device_id)
+
+    measurements = Measurement.objects.filter(device=device).order_by("-created_at")[:20]
+    alerts = Alert.objects.filter(device=device).order_by("-created_at")[:10]
+
+    context = {
+        "device": device,
+        "measurements": measurements,
+        "alerts": alerts,
+    }
+    return render(request, "core/device_detail.html", context)
+
+
+@login_required
+def device_create(request):
+    """
+    Crea un nuevo Device dentro de la organización del usuario.
+    - Usa DeviceForm.
+    - Asigna organization automáticamente según el usuario.
+    - Sólo ADMIN / VERIFIER pueden crear.
+    """
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+
+    org = _user_org_or_none(request.user)
+    if org is None:
+        messages.error(request, "No tienes una organización asociada.")
+        return redirect("dashboard")
+
+    if not _can_manage_devices(request.user):
+        messages.error(request, "No tienes permisos para crear dispositivos.")
+        return redirect("device_list")
+
+    if request.method == "POST":
+        form = DeviceForm(request.POST)
+        # limitamos a la organización del usuario
+        form.fields["category"].queryset = Category.objects.filter(organization=org)
+        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+
+        if form.is_valid():
+            device = form.save(commit=False)
+            device.organization = org  # muy importante: scoping por org
+            device.save()
+            messages.success(request, "Dispositivo creado correctamente.")
+            return redirect("device_list")
+    else:
+        form = DeviceForm()
+        form.fields["category"].queryset = Category.objects.filter(organization=org)
+        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+
+    return render(request, "core/device_form.html", {
+        "form": form,
+        "mode": "create",
+    })
+
+
+@login_required
+def device_update(request, device_id):
+    """
+    Edita un Device que pertenece a la organización del usuario.
+    Sólo ADMIN / VERIFIER pueden editar.
+    """
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+
+    org = _user_org_or_none(request.user)
+    if not _can_manage_devices(request.user):
+        messages.error(request, "No tienes permisos para editar dispositivos.")
+        return redirect("device_list")
+
+    base = Device.objects.select_related("category", "zone", "organization")
+    if org:
+        base = base.filter(organization=org)
+
+    device = get_object_or_404(base, id=device_id)
+
+    if request.method == "POST":
+        form = DeviceForm(request.POST, instance=device)
+        form.fields["category"].queryset = Category.objects.filter(organization=org)
+        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+
+        if form.is_valid():
+            obj = form.save(commit=False)
+            if org:
+                obj.organization = org
+            obj.save()
+            messages.success(request, "Dispositivo actualizado correctamente.")
+            return redirect("device_detail", device_id=device.id)
+    else:
+        form = DeviceForm(instance=device)
+        form.fields["category"].queryset = Category.objects.filter(organization=org)
+        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+
+    return render(request, "core/device_form.html", {
+        "form": form,
+        "mode": "edit",
+        "device": device,
+    })
+
+
+@login_required
+def device_delete(request, device_id):
+    """
+    Elimina un Device de la organización del usuario.
+    Sólo ADMIN / VERIFIER pueden eliminar.
+    """
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+
+    org = _user_org_or_none(request.user)
+    if not _can_manage_devices(request.user):
+        messages.error(request, "No tienes permisos para eliminar dispositivos.")
+        return redirect("device_list")
+
+    base = Device.objects.select_related("organization")
+    if org:
+        base = base.filter(organization=org)
+
+    device = get_object_or_404(base, id=device_id)
+
+    if request.method == "POST":
+        device.delete()
+        messages.success(request, "Dispositivo eliminado correctamente.")
+        return redirect("device_list")
+
+    return render(request, "core/device_confirm_delete.html", {
+        "device": device,
+    })

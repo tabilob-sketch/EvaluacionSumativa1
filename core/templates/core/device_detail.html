@@ -1,34 +1,47 @@
 {% extends "base.html" %}
 
-{% block title %}Detalle del dispositivo{% endblock %}
+{% block title %}Detalle de dispositivo{% endblock %}
 
 {% block content %}
-<h2>{{ device.name }}</h2>
+<h2 class="mb-3">Detalle de dispositivo</h2>
 
-<p><strong>Categoría:</strong> {{ device.category.name }}</p>
-<p><strong>Zona:</strong> {{ device.zone.name }}</p>
+<div class="card mb-4">
+  <div class="card-body">
+    <h4>{{ device.name }}</h4>
+    <p>
+      Categoría: {{ device.category.name }}<br>
+      Zona: {{ device.zone.name }}<br>
+      Organización: {{ device.organization.name }}
+    </p>
 
-<hr>
+    {# Botones de edición solo para quien puede gestionar #}
+    {% if can_manage_devices %}
+      <a href="{% url 'device_update' device.id %}" class="btn btn-warning btn-sm">
+        Editar
+      </a>
+      <a href="{% url 'device_delete' device.id %}" class="btn btn-danger btn-sm">
+        Eliminar
+      </a>
+    {% endif %}
+  </div>
+</div>
 
-<h4>Últimas mediciones</h4>
+<h5>Últimas mediciones</h5>
 <ul>
-    {% for m in measurements %}
-        <li>{{ m.created_at|date:"d/m/Y H:i" }} → {{ m.value }}</li>
-    {% empty %}
-        <li>No hay mediciones registradas.</li>
-    {% endfor %}
+  {% for m in measurements %}
+    <li>{{ m.created_at }} → {{ m.value }}</li>
+  {% empty %}
+    <li>No hay mediciones.</li>
+  {% endfor %}
 </ul>
 
-<hr>
-
-<h4>Últimas alertas</h4>
+<h5 class="mt-4">Alertas recientes</h5>
 <ul>
-    {% for a in alerts %}
-        <li>{{ a.created_at|date:"d/m/Y H:i" }} → {{ a.message }} ({{ a.priority }})</li>
-    {% empty %}
-        <li>No hay alertas registradas.</li>
-    {% endfor %}
+  {% for a in alerts %}
+    <li>[{{ a.priority }}] {{ a.created_at }} → {{ a.message }}</li>
+  {% empty %}
+    <li>No hay alertas.</li>
+  {% endfor %}
 </ul>
 
-<a href="{% url 'device_list' %}" class="btn btn-secondary mt-3">Volver al listado</a>
 {% endblock %}
