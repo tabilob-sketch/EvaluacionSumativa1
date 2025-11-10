@@ -4,7 +4,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 import re
 
-from .models import Device, Category, Account
+from .models import Device, Category
 
 
 # =============================
@@ -14,7 +14,7 @@ from .models import Device, Category, Account
 class DeviceForm(forms.ModelForm):
     class Meta:
         model = Device
-        # SOLO campos que estamos seguros que existen en el modelo
+        # SOLO campos que existen en el modelo Device
         fields = [
             "name",
             "category",
@@ -37,10 +37,8 @@ class DeviceForm(forms.ModelForm):
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        fields = ["name", "description"]
-        widgets = {
-            "description": forms.Textarea(attrs={"rows": 3}),
-        }
+        # Tu modelo Category solo tiene name
+        fields = ["name"]
 
     def clean_name(self):
         name = self.cleaned_data.get("name", "").strip()
