@@ -3,7 +3,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden
 
 from .models import Device, Measurement, Alert, Category, Zone, Organization
 from .forms import DeviceForm
@@ -214,3 +214,59 @@ def device_delete(request, device_id):
     return render(request, "core/device_confirm_delete.html", {
         "device": device,
     })
+
+
+@login_required
+def device_export(request):
+    """
+    Exporta a CSV (Excel compatible) el listado de dispositivos filtrado
+    por categoría y zona, y respetando la organización del usuario.
+    Solo para usuarios con permiso (_can_manage_devices).
+    """
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+
+    if not _can_manage_devices(request.user):
+        return HttpResponseForbidden("No tienes permiso para exportar dispositivos.")
+
+    org = _user_org_or_none(request.user)
+
+    qs = Device.objects.select_related("category", "zone", "organization").all()
+    if org and not request.user.is_superuser:
+        qs = qs.filter(organization=org)
+
+    # Aplicar mismos filtros que en device_list
+    category_id = request.GET.get("category", "all")
+    zone_id = request.GET.get("zone", "all")
+
+    if category_id != "all":
+        qs = qs.filter(category_id=category_id)
+    if zone_id != "all":
+        qs = qs.filter(zone_id=zone_id)
+
+    import csv
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="dispositivos.csv"'
+
+    writer = csv.writer(response)
+    # Encabezados
+    writer.writerow([
+        "ID",
+        "Nombre",
+        "Organización",
+        "Categoría",
+        "Zona",
+    ])
+
+    # Filas
+    for d in qs:
+        writer.writerow([
+            d.id,
+            d.name,
+            d.organization.name if d.organization else "",
+            d.category.name if d.category else "",
+            d.zone.name if d.zone else "",
+        ])
+
+    return response
