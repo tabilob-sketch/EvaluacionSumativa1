@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import render, redirect
 from django.utils import timezone
+from datetime import timedelta
 
 from .models import (
     Organization,
@@ -108,11 +109,34 @@ def _can_manage_devices(user):
 
 @login_required
 def dashboard(request):
+    """
+    Dashboard robusto:
+    - Si el usuario no tiene Account u organización, muestra un mensaje amable.
+    - No revienta aunque falten datos.
+    """
     if not _require_org_or_redirect(request):
-        return redirect("no_org")
+        # En lugar de petar, mostramos un mensaje
+        messages.warning(
+            request,
+            "Tu usuario todavía no tiene una organización asociada. "
+            "Pide al administrador que te asigne una."
+        )
+        return render(request, "core/dashboard.html", {
+            "devices_by_category": {},
+            "devices_by_zone": {},
+            "latest_measurements": [],
+            "recent_alerts": [],
+            "grave_count": 0,
+            "alto_count": 0,
+            "medio_count": 0,
+            "categories": [],
+            "zones": [],
+            "devices": [],
+        })
 
     org = _user_org_or_none(request.user)
 
+    # Si no hay org (pero _require_org_or_redirect fue True), igual protegemos
     categories = Category.objects.all()
     zones = Zone.objects.all()
     if org:
@@ -124,28 +148,22 @@ def dashboard(request):
     if org:
         devices_qs = devices_qs.filter(organization=org)
 
-    devices_by_category = {
-        c.name: devices_qs.filter(category=c).count()
-        for c in categories
-    }
-    devices_by_zone = {
-        z.name: devices_qs.filter(zone=z).count()
-        for z in zones
-    }
+    devices_by_category = {c.name: devices_qs.filter(category=c).count() for c in categories}
+    devices_by_zone = {z.name: devices_qs.filter(zone=z).count() for z in zones}
 
-    # Últimas mediciones (filtrando ANTES de cortar)
+    # Últimas mediciones
     latest_measurements_qs = Measurement.objects.select_related("device").order_by("-created_at")
     if org:
         latest_measurements_qs = latest_measurements_qs.filter(device__organization=org)
-    latest_measurements = latest_measurements_qs[:10]
+    latest_measurements = list(latest_measurements_qs[:10])
 
     # Alertas recientes
     recent_alerts_qs = Alert.objects.select_related("device").order_by("-created_at")
     if org:
         recent_alerts_qs = recent_alerts_qs.filter(device__organization=org)
-    recent_alerts = recent_alerts_qs[:5]
+    recent_alerts = list(recent_alerts_qs[:5])
 
-    # Contadores semanales por prioridad
+    # Alertas de la última semana
     now = timezone.now()
     week_ago = now - timedelta(days=7)
     weekly_alerts_qs = Alert.objects.filter(created_at__gte=week_ago)
@@ -156,7 +174,7 @@ def dashboard(request):
     alto_count = weekly_alerts_qs.filter(priority="alto").count()
     medio_count = weekly_alerts_qs.filter(priority="medio").count()
 
-    # Filtros del grid de dispositivos del dashboard
+    # Filtros simples del grid de dispositivos
     category_id = request.GET.get("category")
     zone_id = request.GET.get("zone")
 
