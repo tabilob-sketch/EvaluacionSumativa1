@@ -1,76 +1,168 @@
 # core/forms.py
 
 from django import forms
-from django.contrib.auth.models import User
-from .models import Account, Device, Category
+from django.core.exceptions import ValidationError
+import re
 
-# Si ya tienes DeviceForm y CategoryForm, déjalos.
-# Solo te dejo un ejemplo de DeviceForm con validaciones simples:
+from .models import Device, Category, Account
+
+
+# =============================
+# Formulario de Device (CRUD)
+# =============================
 
 class DeviceForm(forms.ModelForm):
     class Meta:
         model = Device
-        fields = ["name", "category", "zone", "status"]
+        # IMPORTANTE: aquí NO va "status" porque el modelo no lo tiene
+        fields = [
+            "name",
+            "serial_number",
+            "category",
+            "zone",
+            "installed_at",
+            "is_active",
+            "description",
+        ]
+        widgets = {
+            "installed_at": forms.DateInput(attrs={"type": "date"}),
+            "description": forms.Textarea(attrs={"rows": 3}),
+        }
 
     def clean_name(self):
         name = self.cleaned_data.get("name", "").strip()
         if not name:
-            raise forms.ValidationError("El nombre es obligatorio.")
+            raise ValidationError("El nombre es obligatorio.")
+        if len(name) < 3:
+            raise ValidationError("El nombre debe tener al menos 3 caracteres.")
         return name
 
+    def clean_serial_number(self):
+        sn = self.cleaned_data.get("serial_number", "").strip()
+        if not sn:
+            raise ValidationError("El número de serie es obligatorio.")
+        if len(sn) < 4:
+            raise ValidationError("El número de serie debe tener al menos 4 caracteres.")
+
+        # Evitar duplicados de serie dentro de la BD
+        qs = Device.objects.filter(serial_number__iexact=sn)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError("Ya existe un dispositivo con este número de serie.")
+        return sn
+
+    def clean(self):
+        cleaned = super().clean()
+        # ejemplo: podrías validar fechas futuras aquí si quisieras
+        return cleaned
+
+
+# =============================
+# Formulario de Category (CRUD)
+# =============================
 
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        fields = ["name"]
+        fields = ["name", "description"]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+        }
 
+    def clean_name(self):
+        name = self.cleaned_data.get("name", "").strip()
+        if not name:
+            raise ValidationError("El nombre es obligatorio.")
+        if len(name) < 3:
+            raise ValidationError("El nombre debe tener al menos 3 caracteres.")
+        return name
+
+
+# =============================
+# Formulario de Perfil de Usuario
+# =============================
 
 class ProfileForm(forms.Form):
-    name = forms.CharField(label="Nombre", max_length=150)
-    email = forms.EmailField(label="Correo")
-    phone = forms.CharField(label="Teléfono", max_length=30, required=False)
-    avatar = forms.ImageField(label="Avatar", required=False)
+    name = forms.CharField(
+        label="Nombre",
+        max_length=150,
+        required=True,
+    )
+    email = forms.EmailField(
+        label="Correo",
+        required=True,
+    )
+    phone = forms.CharField(
+        label="Teléfono",
+        required=False,
+    )
+    avatar = forms.ImageField(
+        label="Avatar",
+        required=False,
+    )
+
+    def clean_phone(self):
+        phone = self.cleaned_data.get("phone", "").strip()
+        if phone:
+            # validamos formato simple: solo números, +, espacios y guiones
+            if not re.match(r"^[0-9+\-\s]+$", phone):
+                raise ValidationError("El teléfono solo puede contener números, +, espacios y guiones.")
+        return phone
 
     def clean_avatar(self):
         avatar = self.cleaned_data.get("avatar")
         if avatar:
-            if avatar.size > 2 * 1024 * 1024:
-                raise forms.ValidationError("La imagen no puede pesar más de 2 MB.")
-            if avatar.content_type not in ["image/jpeg", "image/png", "image/webp"]:
-                raise forms.ValidationError("Formato de imagen inválido. Usa JPG, PNG o WEBP.")
+            # Máx 2MB
+            max_size = 2 * 1024 * 1024
+            if avatar.size > max_size:
+                raise ValidationError("El avatar no puede superar los 2MB.")
         return avatar
 
+
+# =============================
+# Formulario de cambio de contraseña
+# =============================
 
 class PasswordChangeCustomForm(forms.Form):
     current_password = forms.CharField(
         label="Contraseña actual",
-        widget=forms.PasswordInput
+        widget=forms.PasswordInput,
+        required=True,
     )
     new_password = forms.CharField(
         label="Nueva contraseña",
         widget=forms.PasswordInput,
-        help_text="Mínimo 8 caracteres, 1 mayúscula y 1 número."
+        required=True,
     )
     confirm_password = forms.CharField(
         label="Confirmar nueva contraseña",
-        widget=forms.PasswordInput
+        widget=forms.PasswordInput,
+        required=True,
     )
+
+    def clean_new_password(self):
+        pwd = self.cleaned_data.get("new_password", "")
+
+        # Validaciones mínimas (según rúbrica):
+        # - longitud >= 8
+        # - al menos 1 mayúscula
+        # - al menos 1 número
+        if len(pwd) < 8:
+            raise ValidationError("La contraseña debe tener al menos 8 caracteres.")
+        if not re.search(r"[A-Z]", pwd):
+            raise ValidationError("La contraseña debe contener al menos una letra mayúscula.")
+        if not re.search(r"[0-9]", pwd):
+            raise ValidationError("La contraseña debe contener al menos un número.")
+
+        return pwd
 
     def clean(self):
         cleaned = super().clean()
-        new = cleaned.get("new_password")
-        confirm = cleaned.get("confirm_password")
+        pwd1 = cleaned.get("new_password")
+        pwd2 = cleaned.get("confirm_password")
 
-        if new and confirm and new != confirm:
-            self.add_error("confirm_password", "Las contraseñas no coinciden.")
-
-        # Validaciones mínimas
-        if new:
-            if len(new) < 8:
-                self.add_error("new_password", "Debe tener al menos 8 caracteres.")
-            if not any(c.isupper() for c in new):
-                self.add_error("new_password", "Debe tener al menos una mayúscula.")
-            if not any(c.isdigit() for c in new):
-                self.add_error("new_password", "Debe tener al menos un número.")
+        if pwd1 and pwd2 and pwd1 != pwd2:
+            self.add_error("confirm_password", "Las contraseñas nuevas no coinciden.")
 
         return cleaned
