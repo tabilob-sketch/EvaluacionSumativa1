@@ -1,5 +1,3 @@
-# core/device_views.py
-
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -9,9 +7,33 @@ from .models import Device, Measurement, Alert, Category, Zone
 from .forms import DeviceForm
 from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
 
+from django.core.paginator import Paginator
+from openpyxl import Workbook
+from django.http import HttpResponse
+
+
+
+# core/device_views.py
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden, HttpResponse
+from django.core.paginator import Paginator
+
+from openpyxl import Workbook
+
+from .models import Device, Measurement, Alert, Category, Zone
+from .forms import DeviceForm
+from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
+
 
 @login_required
 def device_list(request):
+    """
+    Listado de dispositivos con filtros, paginación y flag can_manage_devices.
+    Los filtros se guardan en sesión para "recordar" la selección.
+    """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
@@ -26,21 +48,38 @@ def device_list(request):
         categories = categories.filter(organization=org)
         zones = zones.filter(organization=org)
 
-    category_id = request.GET.get("category", "all")
-    zone_id = request.GET.get("zone", "all")
+    # --- Filtros y recuerdo en sesión ---
+    category_param = request.GET.get("category")
+    zone_param = request.GET.get("zone")
+
+    if category_param is None and zone_param is None:
+        # No vienen parámetros → usar lo que haya en sesión o "all"
+        category_id = request.session.get("device_filter_category", "all")
+        zone_id = request.session.get("device_filter_zone", "all")
+    else:
+        # Vienen parámetros → usarlos y guardarlos en sesión
+        category_id = category_param or "all"
+        zone_id = zone_param or "all"
+        request.session["device_filter_category"] = category_id
+        request.session["device_filter_zone"] = zone_id
 
     if category_id != "all":
         devices = devices.filter(category_id=category_id)
     if zone_id != "all":
         devices = devices.filter(zone_id=zone_id)
 
+    # --- Paginación ---
+    paginator = Paginator(devices, 10)  # 10 dispositivos por página
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
     context = {
-        "devices": devices,
+        "devices": page_obj.object_list,
+        "page_obj": page_obj,
         "categories": categories,
         "zones": zones,
         "selected_category": category_id,
         "selected_zone": zone_id,
-        # usamos esto en el template para mostrar/ocultar el botón de crear
         "can_manage_devices": _can_manage_devices(request.user),
     }
     return render(request, "core/device_list.html", context)
@@ -182,3 +221,58 @@ def device_delete(request, device_id):
     return render(request, "core/device_confirm_delete.html", {
         "device": device,
     })
+
+
+@login_required
+def device_export_excel(request):
+    """
+    Exporta a Excel el listado de dispositivos (respetando filtros y organización).
+    """
+    if not _require_org_or_redirect(request):
+        return redirect("no_org")
+
+    if not _can_manage_devices(request.user) and not request.user.is_superuser:
+        return HttpResponseForbidden("No tienes permiso para exportar dispositivos.")
+
+    org = _user_org_or_none(request.user)
+
+    devices = Device.objects.select_related("category", "zone", "organization").all()
+    if org:
+        devices = devices.filter(organization=org)
+
+    # Aplicar los mismos filtros que en device_list
+    category_id = request.session.get("device_filter_category", "all")
+    zone_id = request.session.get("device_filter_zone", "all")
+
+    if category_id != "all":
+        devices = devices.filter(category_id=category_id)
+    if zone_id != "all":
+        devices = devices.filter(zone_id=zone_id)
+
+    # Crear workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Dispositivos"
+
+    # Encabezados
+    ws.append(["ID", "Nombre", "Categoría", "Zona", "Organización", "Creado"])
+
+    # Filas
+    for d in devices:
+        ws.append([
+            d.id,
+            d.name,
+            d.category.name if d.category else "",
+            d.zone.name if d.zone else "",
+            d.organization.name if d.organization else "",
+            d.created_at.strftime("%Y-%m-%d %H:%M") if hasattr(d, "created_at") and d.created_at else "",
+        ])
+
+    # Respuesta HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="dispositivos.xlsx"'
+    wb.save(response)
+    return response
+
