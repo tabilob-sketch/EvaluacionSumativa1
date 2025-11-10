@@ -1,29 +1,11 @@
-from django.shortcuts import render, get_object_or_404, redirect
+# core/device_views.py
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
-
-from .models import Device, Measurement, Alert, Category, Zone
-from .forms import DeviceForm
-from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
-
-from django.core.paginator import Paginator
-from openpyxl import Workbook
-from django.http import HttpResponse
-
-
-
-# core/device_views.py
-
 from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden, HttpResponse
-from django.core.paginator import Paginator
 
-from openpyxl import Workbook
-
-from .models import Device, Measurement, Alert, Category, Zone
+from .models import Device, Measurement, Alert, Category, Zone, Organization
 from .forms import DeviceForm
 from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
 
@@ -31,8 +13,8 @@ from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devi
 @login_required
 def device_list(request):
     """
-    Listado de dispositivos con filtros, paginación y flag can_manage_devices.
-    Los filtros se guardan en sesión para "recordar" la selección.
+    Lista de dispositivos, filtrados por organización y por
+    categoría/zona si se envían por GET.
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
@@ -43,43 +25,27 @@ def device_list(request):
     categories = Category.objects.all()
     zones = Zone.objects.all()
 
+    # Si el usuario tiene organización (no-superuser), filtramos por ella.
     if org:
         devices = devices.filter(organization=org)
         categories = categories.filter(organization=org)
         zones = zones.filter(organization=org)
 
-    # --- Filtros y recuerdo en sesión ---
-    category_param = request.GET.get("category")
-    zone_param = request.GET.get("zone")
-
-    if category_param is None and zone_param is None:
-        # No vienen parámetros → usar lo que haya en sesión o "all"
-        category_id = request.session.get("device_filter_category", "all")
-        zone_id = request.session.get("device_filter_zone", "all")
-    else:
-        # Vienen parámetros → usarlos y guardarlos en sesión
-        category_id = category_param or "all"
-        zone_id = zone_param or "all"
-        request.session["device_filter_category"] = category_id
-        request.session["device_filter_zone"] = zone_id
+    category_id = request.GET.get("category", "all")
+    zone_id = request.GET.get("zone", "all")
 
     if category_id != "all":
         devices = devices.filter(category_id=category_id)
     if zone_id != "all":
         devices = devices.filter(zone_id=zone_id)
 
-    # --- Paginación ---
-    paginator = Paginator(devices, 10)  # 10 dispositivos por página
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-
     context = {
-        "devices": page_obj.object_list,
-        "page_obj": page_obj,
+        "devices": devices,
         "categories": categories,
         "zones": zones,
         "selected_category": category_id,
         "selected_zone": zone_id,
+        # usamos esto en el template para mostrar/ocultar botón Crear
         "can_manage_devices": _can_manage_devices(request.user),
     }
     return render(request, "core/device_list.html", context)
@@ -87,9 +53,12 @@ def device_list(request):
 
 @login_required
 def device_detail(request, device_id):
+    """
+    Detalle de un dispositivo. Respeta la organización del usuario.
+    """
     org = _user_org_or_none(request.user)
     base = Device.objects.select_related("category", "zone", "organization")
-    if org:
+    if org and not request.user.is_superuser:
         base = base.filter(organization=org)
 
     device = get_object_or_404(base, id=device_id)
@@ -109,46 +78,45 @@ def device_detail(request, device_id):
 @login_required
 def device_create(request):
     """
-    Crea un nuevo Device.
-    - Usa DeviceForm.
-    - Asigna organization SIEMPRE desde la categoría elegida.
+    Crea un nuevo Device dentro de la organización del usuario.
+    Solo para usuarios con permiso (_can_manage_devices).
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
+    if not _can_manage_devices(request.user):
+        return HttpResponseForbidden("No tienes permiso para crear dispositivos.")
+
     org = _user_org_or_none(request.user)
 
-    # Si no es superuser y no tiene organización, lo sacamos
-    if org is None and not request.user.is_superuser:
-        messages.error(request, "No tienes una organización asociada. Pide al administrador que te asigne una.")
+    # Si el usuario es superuser y no tiene org en Account,
+    # usamos la primera organización disponible en la BD.
+    if org is None and request.user.is_superuser:
+        org = Organization.objects.order_by("id").first()
+
+    # Si aún no hay organización, no podemos crear el dispositivo.
+    if org is None:
+        messages.error(request, "No hay organización disponible para asociar el dispositivo.")
         return redirect("device_list")
 
     if request.method == "POST":
         form = DeviceForm(request.POST)
 
-        # Limitamos categorías y zonas a la organización del usuario (si tiene)
-        if org:
-            form.fields["category"].queryset = Category.objects.filter(organization=org)
-            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        # Limitamos categorías y zonas a la organización del usuario
+        form.fields["category"].queryset = Category.objects.filter(organization=org)
+        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
         if form.is_valid():
             device = form.save(commit=False)
-
-            # Tomamos la organización desde la categoría seleccionada.
-            if device.category and device.category.organization:
-                device.organization = device.category.organization
-            else:
-                messages.error(request, "La categoría seleccionada no tiene organización asociada.")
-                return redirect("device_list")
-
+            # SIEMPRE seteamos organization (clave del error que tenías)
+            device.organization = org
             device.save()
             messages.success(request, "Dispositivo creado correctamente.")
             return redirect("device_list")
     else:
         form = DeviceForm()
-        if org:
-            form.fields["category"].queryset = Category.objects.filter(organization=org)
-            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        form.fields["category"].queryset = Category.objects.filter(organization=org)
+        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
     return render(request, "core/device_form.html", {
         "form": form,
@@ -156,11 +124,11 @@ def device_create(request):
     })
 
 
-
 @login_required
 def device_update(request, device_id):
     """
-    Edita un Device.
+    Edita un Device que pertenece a la organización del usuario.
+    Solo para usuarios con permiso (_can_manage_devices).
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
@@ -170,6 +138,7 @@ def device_update(request, device_id):
 
     org = _user_org_or_none(request.user)
 
+    # Superuser puede ver todos, los demás solo su org
     base = Device.objects.select_related("category", "zone", "organization")
     if org and not request.user.is_superuser:
         base = base.filter(organization=org)
@@ -184,14 +153,9 @@ def device_update(request, device_id):
 
         if form.is_valid():
             device = form.save(commit=False)
-
-            # Igual que en create: siempre tomamos la org desde la categoría
-            if device.category and device.category.organization:
-                device.organization = device.category.organization
-            else:
-                messages.error(request, "La categoría seleccionada no tiene organización asociada.")
-                return redirect("device_detail", device_id=device.id)
-
+            # Para usuarios normales, fijamos la org de su cuenta
+            if org and not request.user.is_superuser:
+                device.organization = org
             device.save()
             messages.success(request, "Dispositivo actualizado correctamente.")
             return redirect("device_detail", device_id=device.id)
@@ -206,7 +170,6 @@ def device_update(request, device_id):
         "mode": "edit",
         "device": device,
     })
-
 
 
 @login_required
@@ -236,58 +199,3 @@ def device_delete(request, device_id):
     return render(request, "core/device_confirm_delete.html", {
         "device": device,
     })
-
-
-@login_required
-def device_export_excel(request):
-    """
-    Exporta a Excel el listado de dispositivos (respetando filtros y organización).
-    """
-    if not _require_org_or_redirect(request):
-        return redirect("no_org")
-
-    if not _can_manage_devices(request.user) and not request.user.is_superuser:
-        return HttpResponseForbidden("No tienes permiso para exportar dispositivos.")
-
-    org = _user_org_or_none(request.user)
-
-    devices = Device.objects.select_related("category", "zone", "organization").all()
-    if org:
-        devices = devices.filter(organization=org)
-
-    # Aplicar los mismos filtros que en device_list
-    category_id = request.session.get("device_filter_category", "all")
-    zone_id = request.session.get("device_filter_zone", "all")
-
-    if category_id != "all":
-        devices = devices.filter(category_id=category_id)
-    if zone_id != "all":
-        devices = devices.filter(zone_id=zone_id)
-
-    # Crear workbook
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Dispositivos"
-
-    # Encabezados
-    ws.append(["ID", "Nombre", "Categoría", "Zona", "Organización", "Creado"])
-
-    # Filas
-    for d in devices:
-        ws.append([
-            d.id,
-            d.name,
-            d.category.name if d.category else "",
-            d.zone.name if d.zone else "",
-            d.organization.name if d.organization else "",
-            d.created_at.strftime("%Y-%m-%d %H:%M") if hasattr(d, "created_at") and d.created_at else "",
-        ])
-
-    # Respuesta HTTP
-    response = HttpResponse(
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    response["Content-Disposition"] = 'attachment; filename="dispositivos.xlsx"'
-    wb.save(response)
-    return response
-
