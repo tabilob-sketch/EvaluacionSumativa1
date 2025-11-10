@@ -1,46 +1,93 @@
 {% extends "base.html" %}
-{% block title %}Mi Perfil{% endblock %}
+
+{% block title %}Mi perfil{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-  <h2 class="mb-3">Mi perfil</h2>
+<div class="container mt-4">
+  <h2 class="mb-4">Mi perfil</h2>
 
-  {% if account and account.avatar %}
-    <div class="mb-3">
-      <img src="{{ account.avatar.url }}" alt="Avatar" class="rounded-circle" width="120" height="120">
-    </div>
-  {% endif %}
+  <div class="row">
+    <!-- Columna avatar + info básica -->
+    <div class="col-md-4 text-center">
+      {% if account and account.avatar %}
+        <img
+          src="{{ account.avatar.url }}"
+          alt="Avatar"
+          class="rounded-circle mb-3"
+          style="width: 150px; height: 150px; object-fit: cover;"
+        >
+      {% else %}
+        <div
+          class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mb-3"
+          style="width: 150px; height: 150px;"
+        >
+          <span class="text-white fs-1">
+            {{ user.username|default:"U" |first|upper }}
+          </span>
+        </div>
+      {% endif %}
 
-  <form method="post" enctype="multipart/form-data" class="row g-3">
-    {% csrf_token %}
-    <div class="col-md-6">
-      <label class="form-label">Nombre</label>
-      {{ form.name|as_widget(attrs={"class":"form-control"}) }}
-      {% for e in form.name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      <p class="mb-0 fw-bold">{{ user.username }}</p>
+      <p class="text-muted mb-1">{{ user.email }}</p>
+
+      {% if account and account.role %}
+        <p class="small text-muted mb-0">
+          Rol: {{ account.get_role_display }}
+        </p>
+      {% endif %}
     </div>
 
-    <div class="col-md-6">
-      <label class="form-label">Correo</label>
-      {{ form.email|as_widget(attrs={"class":"form-control"}) }}
-      {% for e in form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-    </div>
+    <!-- Columna formulario -->
+    <div class="col-md-8">
+      <form method="post" enctype="multipart/form-data" class="card p-3 shadow-sm">
+        {% csrf_token %}
 
-    <div class="col-md-6">
-      <label class="form-label">Teléfono</label>
-      {{ form.phone|as_widget(attrs={"class":"form-control"}) }}
-      {% for e in form.phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-    </div>
+        <div class="mb-3">
+          <label class="form-label">Nombre</label>
+          {{ form.name }}
+          {% if form.name.errors %}
+            <div class="text-danger small">{{ form.name.errors.0 }}</div>
+          {% endif %}
+        </div>
 
-    <div class="col-md-6">
-      <label class="form-label">Avatar (JPG/PNG/WebP, <= 2MB)</label>
-      {{ form.avatar|as_widget(attrs={"class":"form-control"}) }}
-      {% for e in form.avatar.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-    </div>
+        <div class="mb-3">
+          <label class="form-label">Correo electrónico</label>
+          {{ form.email }}
+          {% if form.email.errors %}
+            <div class="text-danger small">{{ form.email.errors.0 }}</div>
+          {% endif %}
+        </div>
 
-    <div class="col-12">
-      <button type="submit" class="btn btn-primary">Guardar</button>
-      <a href="{% url 'dashboard' %}" class="btn btn-secondary ms-2">Volver</a>
+        <div class="mb-3">
+          <label class="form-label">Teléfono</label>
+          {{ form.phone }}
+          {% if form.phone.errors %}
+            <div class="text-danger small">{{ form.phone.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Avatar</label>
+          {{ form.avatar }}
+          {% if form.avatar.errors %}
+            <div class="text-danger small">{{ form.avatar.errors.0 }}</div>
+          {% endif %}
+          <div class="form-text">
+            Puedes subir una imagen JPG o PNG. Tamaño máximo 2MB (según validación del form).
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          Guardar cambios
+        </button>
+      </form>
+
+      <hr class="my-4">
+
+      <a href="{% url 'password_change_custom' %}" class="btn btn-outline-secondary btn-sm">
+        Cambiar contraseña
+      </a>
     </div>
-  </form>
+  </div>
 </div>
 {% endblock %}
