@@ -109,30 +109,38 @@ def device_detail(request, device_id):
 @login_required
 def device_create(request):
     """
-    Crea un nuevo Device dentro de la organización del usuario.
-    Solo para usuarios con permiso (_can_manage_devices).
+    Crea un nuevo Device.
+    - Usa DeviceForm.
+    - Asigna organization SIEMPRE desde la categoría elegida.
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
-    if not _can_manage_devices(request.user):
-        return HttpResponseForbidden("No tienes permiso para crear dispositivos.")
-
     org = _user_org_or_none(request.user)
+
+    # Si no es superuser y no tiene organización, lo sacamos
     if org is None and not request.user.is_superuser:
-        messages.error(request, "No tienes una organización asociada.")
-        return redirect("dashboard")
+        messages.error(request, "No tienes una organización asociada. Pide al administrador que te asigne una.")
+        return redirect("device_list")
 
     if request.method == "POST":
         form = DeviceForm(request.POST)
+
+        # Limitamos categorías y zonas a la organización del usuario (si tiene)
         if org:
             form.fields["category"].queryset = Category.objects.filter(organization=org)
             form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
         if form.is_valid():
             device = form.save(commit=False)
-            if not request.user.is_superuser:
-                device.organization = org
+
+            # Tomamos la organización desde la categoría seleccionada.
+            if device.category and device.category.organization:
+                device.organization = device.category.organization
+            else:
+                messages.error(request, "La categoría seleccionada no tiene organización asociada.")
+                return redirect("device_list")
+
             device.save()
             messages.success(request, "Dispositivo creado correctamente.")
             return redirect("device_list")
@@ -148,11 +156,11 @@ def device_create(request):
     })
 
 
+
 @login_required
 def device_update(request, device_id):
     """
-    Edita un Device que pertenece a la organización del usuario.
-    Solo para usuarios con permiso (_can_manage_devices).
+    Edita un Device.
     """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
@@ -176,8 +184,14 @@ def device_update(request, device_id):
 
         if form.is_valid():
             device = form.save(commit=False)
-            if org and not request.user.is_superuser:
-                device.organization = org
+
+            # Igual que en create: siempre tomamos la org desde la categoría
+            if device.category and device.category.organization:
+                device.organization = device.category.organization
+            else:
+                messages.error(request, "La categoría seleccionada no tiene organización asociada.")
+                return redirect("device_detail", device_id=device.id)
+
             device.save()
             messages.success(request, "Dispositivo actualizado correctamente.")
             return redirect("device_detail", device_id=device.id)
@@ -192,6 +206,7 @@ def device_update(request, device_id):
         "mode": "edit",
         "device": device,
     })
+
 
 
 @login_required
