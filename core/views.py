@@ -1,16 +1,8 @@
-# core/views.py
-
-from datetime import timedelta
-
 from django.contrib import messages
-from django.contrib.auth import (
-    authenticate,
-    login,
-    logout,
-    update_session_auth_hash,
-)
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import render, redirect
 from django.utils import timezone
 
@@ -24,6 +16,7 @@ from .models import (
     Account,
 )
 from .forms import ProfileForm, PasswordChangeCustomForm
+
 
 
 # =============================
@@ -287,13 +280,17 @@ def password_reset_view(request):
 def profile_view(request):
     """
     Permite editar:
-    - nombre (user.username)
-    - correo (user.email)
+    - nombre (username)
+    - correo (email)
     - teléfono (Account.phone)
     - avatar (Account.avatar)
     """
     user = request.user
-    acc = getattr(user, "account", None)
+    # user.account puede lanzar Account.DoesNotExist, así que lo protegemos:
+    try:
+        acc = user.account
+    except ObjectDoesNotExist:
+        acc = None
 
     if request.method == "POST":
         form = ProfileForm(request.POST, request.FILES)
@@ -303,10 +300,12 @@ def profile_view(request):
             phone = form.cleaned_data["phone"]
             avatar = form.cleaned_data.get("avatar")
 
+            # Actualizamos el usuario
             user.username = name
             user.email = email
             user.save()
 
+            # Actualizamos Account si existe
             if acc:
                 acc.phone = phone
                 if avatar:
@@ -329,6 +328,7 @@ def profile_view(request):
     })
 
 
+
 # =============================
 # Cambio de contraseña
 # =============================
@@ -337,7 +337,6 @@ def profile_view(request):
 def password_change_custom(request):
     """
     Cambio de contraseña con validaciones personalizadas.
-    (las reglas están en PasswordChangeCustomForm)
     """
     if request.method == "POST":
         form = PasswordChangeCustomForm(request.POST)
@@ -350,6 +349,7 @@ def password_change_custom(request):
             else:
                 request.user.set_password(new)
                 request.user.save()
+                # Mantener la sesión iniciada tras cambiar la contraseña
                 update_session_auth_hash(request, request.user)
                 messages.success(request, "Contraseña cambiada correctamente.")
                 return redirect("profile")

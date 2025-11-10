@@ -1,140 +1,91 @@
 # core/forms.py
-
 from django import forms
-from django.core.exceptions import ValidationError
-import re
-
 from .models import Device, Category
 
-
-# =============================
-# Formulario de Device (CRUD)
-# =============================
 
 class DeviceForm(forms.ModelForm):
     class Meta:
         model = Device
-        # SOLO campos que existen en el modelo Device
-        fields = [
-            "name",
-            "category",
-            "zone",
-        ]
+        fields = ["name", "category", "zone"]
 
     def clean_name(self):
         name = self.cleaned_data.get("name", "").strip()
-        if not name:
-            raise ValidationError("El nombre es obligatorio.")
         if len(name) < 3:
-            raise ValidationError("El nombre debe tener al menos 3 caracteres.")
+            raise forms.ValidationError("El nombre debe tener al menos 3 caracteres.")
         return name
 
-
-# =============================
-# Formulario de Category (CRUD)
-# =============================
 
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        # Tu modelo Category solo tiene name
         fields = ["name"]
 
     def clean_name(self):
         name = self.cleaned_data.get("name", "").strip()
-        if not name:
-            raise ValidationError("El nombre es obligatorio.")
         if len(name) < 3:
-            raise ValidationError("El nombre debe tener al menos 3 caracteres.")
+            raise forms.ValidationError("El nombre debe tener al menos 3 caracteres.")
         return name
 
-
-# =============================
-# Formulario de Perfil de Usuario
-# =============================
 
 class ProfileForm(forms.Form):
     name = forms.CharField(
         label="Nombre",
         max_length=150,
-        required=True,
+        widget=forms.TextInput(attrs={"class": "form-control"})
     )
     email = forms.EmailField(
         label="Correo",
-        required=True,
+        widget=forms.EmailInput(attrs={"class": "form-control"})
     )
     phone = forms.CharField(
         label="Teléfono",
+        max_length=20,
         required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"})
     )
-    avatar = forms.ImageField(
+    avatar = forms.FileField(
         label="Avatar",
         required=False,
+        widget=forms.ClearableFileInput(attrs={"class": "form-control"})
     )
 
-    def clean_phone(self):
-        phone = self.cleaned_data.get("phone", "").strip()
-        if phone:
-            # validamos formato simple: solo números, +, espacios y guiones
-            if not re.match(r"^[0-9+\-\s]+$", phone):
-                raise ValidationError(
-                    "El teléfono solo puede contener números, +, espacios y guiones."
-                )
-        return phone
+    def clean_name(self):
+        name = self.cleaned_data["name"].strip()
+        if len(name) < 3:
+            raise forms.ValidationError("El nombre debe tener al menos 3 caracteres.")
+        return name
 
-    def clean_avatar(self):
-        avatar = self.cleaned_data.get("avatar")
-        if avatar:
-            # Máx 2MB
-            max_size = 2 * 1024 * 1024
-            if avatar.size > max_size:
-                raise ValidationError("El avatar no puede superar los 2MB.")
-        return avatar
-
-
-# =============================
-# Formulario de cambio de contraseña
-# =============================
 
 class PasswordChangeCustomForm(forms.Form):
     current_password = forms.CharField(
         label="Contraseña actual",
-        widget=forms.PasswordInput,
-        required=True,
+        widget=forms.PasswordInput(attrs={"class": "form-control"})
     )
     new_password = forms.CharField(
         label="Nueva contraseña",
-        widget=forms.PasswordInput,
-        required=True,
+        widget=forms.PasswordInput(attrs={"class": "form-control"})
     )
     confirm_password = forms.CharField(
-        label="Confirmar nueva contraseña",
-        widget=forms.PasswordInput,
-        required=True,
+        label="Confirmar contraseña",
+        widget=forms.PasswordInput(attrs={"class": "form-control"})
     )
-
-    def clean_new_password(self):
-        pwd = self.cleaned_data.get("new_password", "")
-
-        # Validaciones mínimas:
-        # - longitud >= 8
-        # - al menos 1 mayúscula
-        # - al menos 1 número
-        if len(pwd) < 8:
-            raise ValidationError("La contraseña debe tener al menos 8 caracteres.")
-        if not re.search(r"[A-Z]", pwd):
-            raise ValidationError("La contraseña debe contener al menos una letra mayúscula.")
-        if not re.search(r"[0-9]", pwd):
-            raise ValidationError("La contraseña debe contener al menos un número.")
-
-        return pwd
 
     def clean(self):
         cleaned = super().clean()
-        pwd1 = cleaned.get("new_password")
-        pwd2 = cleaned.get("confirm_password")
+        new = cleaned.get("new_password")
+        confirm = cleaned.get("confirm_password")
 
-        if pwd1 and pwd2 and pwd1 != pwd2:
-            self.add_error("confirm_password", "Las contraseñas nuevas no coinciden.")
+        # Coincidencia
+        if new and confirm and new != confirm:
+            self.add_error("confirm_password", "Las contraseñas no coinciden.")
+
+        # Reglas básicas
+        if new:
+            if len(new) < 8:
+                self.add_error("new_password", "La contraseña debe tener al menos 8 caracteres.")
+            if not any(c.isupper() for c in new):
+                self.add_error("new_password", "La contraseña debe tener al menos una mayúscula.")
+            if not any(c.isdigit() for c in new):
+                self.add_error("new_password", "La contraseña debe tener al menos un número.")
 
         return cleaned
