@@ -1,88 +1,99 @@
 # core/forms.py
+
 from django import forms
+from django.core.exceptions import ValidationError
+
 from .models import Device, Category
 
 
 class DeviceForm(forms.ModelForm):
+    """
+    Formulario para crear/editar dispositivos.
+    SOLO usa campos que sabemos que existen en el modelo Device
+    (por lo que vimos en tus errores previos: name, category, zone).
+    """
+
     class Meta:
         model = Device
         fields = ["name", "category", "zone"]
 
     def clean_name(self):
-        name = self.cleaned_data.get("name", "").strip()
-        if len(name) < 3:
-            raise forms.ValidationError("El nombre debe tener al menos 3 caracteres.")
+        name = self.cleaned_data["name"].strip()
+        if not name:
+            raise ValidationError("El nombre no puede estar vacío.")
         return name
 
 
 class CategoryForm(forms.ModelForm):
+    """
+    Formulario simple para categorías.
+    Solo usamos el campo 'name', la organization la fija la vista.
+    """
+
     class Meta:
         model = Category
         fields = ["name"]
 
     def clean_name(self):
-        name = self.cleaned_data.get("name", "").strip()
-        if len(name) < 3:
-            raise forms.ValidationError("El nombre debe tener al menos 3 caracteres.")
+        name = self.cleaned_data["name"].strip()
+        if not name:
+            raise ValidationError("El nombre no puede estar vacío.")
         return name
 
-
-# core/forms.py  (añade al final o reemplaza la parte de ProfileForm)
-from django import forms
-
-# core/forms.py
-from django import forms
-
-# --- (Si ya tienes otras clases ModelForm, mantenlas arriba) ---
-# Aquí solo añadimos ProfileForm para edición de perfil.
 
 class ProfileForm(forms.Form):
-    name = forms.CharField(max_length=150, required=True, label="Nombre")
-    email = forms.EmailField(required=True, label="Correo")
-    phone = forms.CharField(max_length=30, required=False, label="Teléfono")
-    avatar = forms.ImageField(required=False, label="Avatar")
+    """
+    Form para editar perfil del usuario:
+    - name (username)
+    - email
+    - phone
+    - avatar (opcional)
+    """
 
-    def clean_name(self):
-        name = self.cleaned_data.get("name", "").strip()
-        if not name:
-            raise forms.ValidationError("El nombre no puede quedar vacío.")
-        return name
-
-    def clean_avatar(self):
-        avatar = self.cleaned_data.get("avatar")
-        if not avatar:
-            return avatar
-        # Validaciones: tamaño y tipo MIME
-        max_mb = 2
-        if avatar.size > max_mb * 1024 * 1024:
-            raise forms.ValidationError(f"El avatar no puede superar {max_mb} MB.")
-        valid_mimes = ("image/jpeg", "image/png", "image/webp")
-        content_type = getattr(avatar, "content_type", "")
-        if content_type not in valid_mimes:
-            raise forms.ValidationError("Formato no soportado. Usa JPG, PNG o WEBP.")
-        return avatar
-
-
-
-    def clean_name(self):
-        name = self.cleaned_data["name"].strip()
-        if len(name) < 3:
-            raise forms.ValidationError("El nombre debe tener al menos 3 caracteres.")
-        return name
+    name = forms.CharField(
+        label="Nombre",
+        max_length=150,
+        required=True,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    email = forms.EmailField(
+        label="Correo",
+        required=True,
+        widget=forms.EmailInput(attrs={"class": "form-control"}),
+    )
+    phone = forms.CharField(
+        label="Teléfono",
+        max_length=50,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    avatar = forms.ImageField(
+        label="Avatar",
+        required=False,
+        widget=forms.ClearableFileInput(attrs={"class": "form-control"}),
+    )
 
 
 class PasswordChangeCustomForm(forms.Form):
+    """
+    Form para cambio de contraseña con
+    validaciones mínimas:
+    - longitud >= 8
+    - al menos una mayúscula
+    - al menos un número
+    """
+
     current_password = forms.CharField(
         label="Contraseña actual",
-        widget=forms.PasswordInput(attrs={"class": "form-control"})
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
     )
     new_password = forms.CharField(
         label="Nueva contraseña",
-        widget=forms.PasswordInput(attrs={"class": "form-control"})
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
     )
     confirm_password = forms.CharField(
-        label="Confirmar contraseña",
-        widget=forms.PasswordInput(attrs={"class": "form-control"})
+        label="Confirmar nueva contraseña",
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
     )
 
     def clean(self):
@@ -90,17 +101,15 @@ class PasswordChangeCustomForm(forms.Form):
         new = cleaned.get("new_password")
         confirm = cleaned.get("confirm_password")
 
-        # Coincidencia
         if new and confirm and new != confirm:
-            self.add_error("confirm_password", "Las contraseñas no coinciden.")
+            raise ValidationError("Las contraseñas nuevas no coinciden.")
 
-        # Reglas básicas
         if new:
             if len(new) < 8:
-                self.add_error("new_password", "La contraseña debe tener al menos 8 caracteres.")
+                raise ValidationError("La contraseña debe tener al menos 8 caracteres.")
             if not any(c.isupper() for c in new):
-                self.add_error("new_password", "La contraseña debe tener al menos una mayúscula.")
+                raise ValidationError("La contraseña debe tener al menos una mayúscula.")
             if not any(c.isdigit() for c in new):
-                self.add_error("new_password", "La contraseña debe tener al menos un número.")
+                raise ValidationError("La contraseña debe tener al menos un número.")
 
         return cleaned

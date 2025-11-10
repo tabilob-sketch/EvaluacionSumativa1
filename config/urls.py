@@ -1,3 +1,4 @@
+# config/urls.py
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -8,6 +9,9 @@ urlpatterns = [
     path("", include("core.urls")),
 ]
 
-# Solo en DEBUG sirve archivos media directamente
+# Servir archivos de MEDIA en desarrollo
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Handler de 404 personalizado (definido en core.views.custom_404)
+handler404 = "core.views.custom_404"
