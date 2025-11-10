@@ -303,15 +303,14 @@ from .forms import ProfileForm
 @login_required
 def profile_view(request):
     """
-    Permite editar:
-    - nombre (username)
-    - correo (email)
-    - teléfono (Account.phone)
+    Editar perfil:
+    - username (name)
+    - email
+    - phone (Account.phone)
     - avatar (Account.avatar)
+    Si Account no existe, la creamos al guardar.
     """
     user = request.user
-
-    # Nos aseguramos de que exista un Account asociado
     try:
         acc = user.account
     except ObjectDoesNotExist:
@@ -325,26 +324,31 @@ def profile_view(request):
             phone = form.cleaned_data["phone"]
             avatar = form.cleaned_data.get("avatar")
 
-            # Actualizamos datos del User
+            # Actualizar User
             user.username = name
             user.email = email
             user.save()
 
-            # Si tiene cuenta asociada, actualizamos también
+            # Actualizar o crear Account
             if acc:
                 acc.phone = phone
                 if avatar:
                     acc.avatar = avatar
                 acc.save()
             else:
-                # En caso de que no exista, la creamos
-                from core.models import Account
+                # crea Account mínimo, ajusta campos si tu modelo requiere más
                 acc = Account.objects.create(user=user, phone=phone, avatar=avatar)
+
+            # Mantener sesión si cambió la contraseña en otra view (a modo de ejemplo)
+            try:
+                update_session_auth_hash(request, request.user)
+            except Exception:
+                pass
 
             messages.success(request, "Perfil actualizado correctamente.")
             return redirect("profile")
         else:
-            messages.error(request, "Corrige los errores del formulario antes de continuar.")
+            messages.error(request, "Corrige los errores del formulario.")
     else:
         initial = {
             "name": user.username,
@@ -357,6 +361,7 @@ def profile_view(request):
         "form": form,
         "account": acc,
     })
+
 
 
 

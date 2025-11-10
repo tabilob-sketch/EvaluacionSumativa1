@@ -27,27 +27,42 @@ class CategoryForm(forms.ModelForm):
         return name
 
 
+# core/forms.py  (añade al final o reemplaza la parte de ProfileForm)
+from django import forms
+
+# core/forms.py
+from django import forms
+
+# --- (Si ya tienes otras clases ModelForm, mantenlas arriba) ---
+# Aquí solo añadimos ProfileForm para edición de perfil.
+
 class ProfileForm(forms.Form):
-    name = forms.CharField(
-        label="Nombre",
-        max_length=150,
-        widget=forms.TextInput(attrs={"class": "form-control"})
-    )
-    email = forms.EmailField(
-        label="Correo",
-        widget=forms.EmailInput(attrs={"class": "form-control"})
-    )
-    phone = forms.CharField(
-        label="Teléfono",
-        max_length=20,
-        required=False,
-        widget=forms.TextInput(attrs={"class": "form-control"})
-    )
-    avatar = forms.FileField(
-        label="Avatar",
-        required=False,
-        widget=forms.ClearableFileInput(attrs={"class": "form-control"})
-    )
+    name = forms.CharField(max_length=150, required=True, label="Nombre")
+    email = forms.EmailField(required=True, label="Correo")
+    phone = forms.CharField(max_length=30, required=False, label="Teléfono")
+    avatar = forms.ImageField(required=False, label="Avatar")
+
+    def clean_name(self):
+        name = self.cleaned_data.get("name", "").strip()
+        if not name:
+            raise forms.ValidationError("El nombre no puede quedar vacío.")
+        return name
+
+    def clean_avatar(self):
+        avatar = self.cleaned_data.get("avatar")
+        if not avatar:
+            return avatar
+        # Validaciones: tamaño y tipo MIME
+        max_mb = 2
+        if avatar.size > max_mb * 1024 * 1024:
+            raise forms.ValidationError(f"El avatar no puede superar {max_mb} MB.")
+        valid_mimes = ("image/jpeg", "image/png", "image/webp")
+        content_type = getattr(avatar, "content_type", "")
+        if content_type not in valid_mimes:
+            raise forms.ValidationError("Formato no soportado. Usa JPG, PNG o WEBP.")
+        return avatar
+
+
 
     def clean_name(self):
         name = self.cleaned_data["name"].strip()

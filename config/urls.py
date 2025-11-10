@@ -8,8 +8,6 @@ urlpatterns = [
     path("", include("core.urls")),
 ]
 
-handler404 = "core.views.custom_404"
-
-# Para servir archivos de MEDIA (avatars) en desarrollo
+# Solo en DEBUG sirve archivos media directamente
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
