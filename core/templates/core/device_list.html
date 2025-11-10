@@ -3,146 +3,138 @@
 {% block title %}Listado de Dispositivos{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Dispositivos</h2>
+    <h2 class="mb-0">Dispositivos</h2>
 
-    {# Botón para crear nuevo dispositivo (solo si tiene permiso) #}
-    {% if can_manage_devices %}
-      <a href="{% url 'device_create' %}" class="btn btn-success">
-        + Nuevo dispositivo
+    <div class="d-flex gap-2">
+      <!-- Botón Exportar a Excel (CSV) -->
+      <a href="{% url 'device_export' %}" class="btn btn-outline-secondary">
+        Exportar a Excel
       </a>
-    {% endif %}
-  </div>
 
-  {# Botón de exportar a Excel (CSV) #}
-  <div class="mb-3">
-    <a
-      class="btn btn-outline-secondary btn-sm"
-      href="?category={{ selected_category }}&zone={{ selected_zone }}&export=excel"
-    >
-      Exportar a Excel
-    </a>
+      <!-- Botón para crear nuevo dispositivo (según permisos) -->
+      {% if can_manage_devices %}
+        <a href="{% url 'device_create' %}" class="btn btn-success">
+          + Nuevo dispositivo
+        </a>
+      {% endif %}
+    </div>
   </div>
 
   <!-- Formulario de filtros -->
   <form method="get" class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-4 mb-2">
       <select name="category" class="form-select">
         <option value="all" {% if selected_category == "all" %}selected{% endif %}>
           Todas las Categorías
         </option>
         {% for c in categories %}
-          <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>
-            {{ c.name }}
-          </option>
+        <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>
+          {{ c.name }}
+        </option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-4 mb-2">
       <select name="zone" class="form-select">
         <option value="all" {% if selected_zone == "all" %}selected{% endif %}>
           Todas las Zonas
         </option>
         {% for z in zones %}
-          <option value="{{ z.id }}" {% if selected_zone == z.id|stringformat:"s" %}selected{% endif %}>
-            {{ z.name }}
-          </option>
+        <option value="{{ z.id }}" {% if selected_zone == z.id|stringformat:"s" %}selected{% endif %}>
+          {{ z.name }}
+        </option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="col-md-4">
-      <button type="submit" class="btn btn-dark w-100">Aplicar filtros</button>
+    <div class="col-md-4 mb-2 d-flex gap-2">
+      <button type="submit" class="btn btn-dark flex-fill">Aplicar filtros</button>
     </div>
   </form>
 
   <!-- Listado de dispositivos -->
   <div class="row">
     {% for d in devices %}
-      <div class="col-md-4">
-        <div class="card mb-3 h-100">
-          <div class="card-body">
-            <h5 class="card-title">{{ d.name }}</h5>
-            <p class="card-text mb-2">
-              <strong>Categoría:</strong> {{ d.category.name }} <br>
-              <strong>Zona:</strong> {{ d.zone.name }}
-            </p>
+    <div class="col-md-4">
+      <div class="card mb-3 h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title">{{ d.name }}</h5>
+          <p class="card-text small text-muted mb-3">
+            <strong>Categoría:</strong> {{ d.category.name }} <br>
+            <strong>Zona:</strong> {{ d.zone.name }}
+          </p>
 
-            <div class="d-flex gap-2">
+          <div class="mt-auto d-flex gap-2">
+            <a
+              class="btn btn-sm btn-outline-primary"
+              href="{% url 'device_detail' d.id %}"
+            >
+              Ver detalles
+            </a>
+
+            {% if can_manage_devices %}
               <a
-                class="btn btn-outline-primary btn-sm"
-                href="{% url 'device_detail' d.id %}"
+                class="btn btn-sm btn-outline-secondary"
+                href="{% url 'device_update' d.id %}"
               >
-                Ver detalles
+                Editar
               </a>
-
-              {% if can_manage_devices %}
-                <a
-                  class="btn btn-outline-warning btn-sm"
-                  href="{% url 'device_update' d.id %}"
-                >
-                  Editar
-                </a>
-                <a
-                  class="btn btn-outline-danger btn-sm"
-                  href="{% url 'device_delete' d.id %}"
-                >
-                  Eliminar
-                </a>
-              {% endif %}
-            </div>
+              <a
+                class="btn btn-sm btn-outline-danger"
+                href="{% url 'device_delete' d.id %}"
+              >
+                Eliminar
+              </a>
+            {% endif %}
           </div>
         </div>
       </div>
+    </div>
     {% empty %}
-      <p>No hay dispositivos disponibles</p>
+    <p>No hay dispositivos disponibles</p>
     {% endfor %}
   </div>
 
-  {# Paginación #}
-  {% if page_obj %}
-    <nav aria-label="Paginación">
-      <ul class="pagination justify-content-center">
-        {% if page_obj.has_previous %}
-          <li class="page-item">
-            <a class="page-link"
-               href="?page={{ page_obj.previous_page_number }}&category={{ selected_category }}&zone={{ selected_zone }}">
-              Anterior
-            </a>
-          </li>
-        {% else %}
-          <li class="page-item disabled"><span class="page-link">Anterior</span></li>
-        {% endif %}
+  <!-- Paginación -->
+  {% if page_obj.has_other_pages %}
+  <nav aria-label="Paginación de dispositivos">
+    <ul class="pagination justify-content-center mt-3">
+      {% if page_obj.has_previous %}
+        <li class="page-item">
+          <a class="page-link"
+             href="?page={{ page_obj.previous_page_number }}&category={{ selected_category }}&zone={{ selected_zone }}">
+            Anterior
+          </a>
+        </li>
+      {% else %}
+        <li class="page-item disabled">
+          <span class="page-link">Anterior</span>
+        </li>
+      {% endif %}
 
-        {% for num in page_obj.paginator.page_range %}
-          {% if num == page_obj.number %}
-            <li class="page-item active">
-              <span class="page-link">{{ num }}</span>
-            </li>
-          {% else %}
-            <li class="page-item">
-              <a class="page-link"
-                 href="?page={{ num }}&category={{ selected_category }}&zone={{ selected_zone }}">
-                {{ num }}
-              </a>
-            </li>
-          {% endif %}
-        {% endfor %}
+      <li class="page-item disabled">
+        <span class="page-link">
+          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
+      </li>
 
-        {% if page_obj.has_next %}
-          <li class="page-item">
-            <a class="page-link"
-               href="?page={{ page_obj.next_page_number }}&category={{ selected_category }}&zone={{ selected_zone }}">
-              Siguiente
-            </a>
-          </li>
-        {% else %}
-          <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
-        {% endif %}
-      </ul>
-    </nav>
+      {% if page_obj.has_next %}
+        <li class="page-item">
+          <a class="page-link"
+             href="?page={{ page_obj.next_page_number }}&category={{ selected_category }}&zone={{ selected_zone }}">
+            Siguiente
+          </a>
+        </li>
+      {% else %}
+        <li class="page-item disabled">
+          <span class="page-link">Siguiente</span>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
   {% endif %}
 </div>
 {% endblock %}

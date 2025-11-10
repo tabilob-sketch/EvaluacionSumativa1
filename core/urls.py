@@ -1,5 +1,4 @@
 # core/urls.py
-
 from django.urls import path
 from . import views
 from . import device_views
@@ -8,10 +7,11 @@ urlpatterns = [
     # Dashboard
     path("", views.dashboard, name="dashboard"),
 
-    # Dispositivos
+    # Dispositivos (CRUD + export)
     path("devices/", device_views.device_list, name="device_list"),
-    path("devices/<int:device_id>/", device_views.device_detail, name="device_detail"),
+    path("devices/export/", device_views.device_export, name="device_export"),
     path("devices/create/", device_views.device_create, name="device_create"),
+    path("devices/<int:device_id>/", device_views.device_detail, name="device_detail"),
     path("devices/<int:device_id>/edit/", device_views.device_update, name="device_update"),
     path("devices/<int:device_id>/delete/", device_views.device_delete, name="device_delete"),
 
@@ -20,16 +20,16 @@ urlpatterns = [
     path("alerts/", views.alert_list, name="alert_list"),
     path("alerts/week/", views.alerts_week, name="alerts_week"),
 
+    # Perfil y contraseña
+    path("profile/", views.profile_view, name="profile"),
+    path("password-change/", views.password_change_custom, name="password_change"),
+
     # Auth
     path("login/", views.login_view, name="login"),
     path("register/", views.register_view, name="register"),
     path("logout/", views.logout_view, name="logout"),
     path("password-reset/", views.password_reset_view, name="password_reset"),
 
-    # Perfil
-    path("profile/", views.profile_view, name="profile"),
-    path("profile/password/", views.password_change_custom, name="password_change_custom"),
-
-    # Sin organización
+    # Página sin organización
     path("no-org/", views.no_org_view, name="no_org"),
 ]
