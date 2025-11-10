@@ -3,14 +3,16 @@
 from datetime import timedelta
 
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import (
+    authenticate,
+    login,
+    logout,
+    update_session_auth_hash,
+)
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 from django.utils import timezone
-
-from django.contrib.auth.models import User
-from .models import Account, Device, Category
 
 from .models import (
     Organization,
@@ -21,6 +23,19 @@ from .models import (
     Alert,
     Account,
 )
+from .forms import ProfileForm, PasswordChangeCustomForm
+
+
+# =============================
+#  Error 404 personalizado
+# =============================
+
+def custom_404(request, exception):
+    """
+    Vista para manejar errores 404 con un template personalizado.
+    Django la llama cuando handler404 apunta aquí.
+    """
+    return render(request, "core/404.html", status=404)
 
 
 # ============================
@@ -30,10 +45,9 @@ from .models import (
 def _user_org_or_none(user):
     """
     Devuelve la organización del usuario (si tiene Account).
-    - Superuser puede no tener organización => retorna None.
+    - Superuser puede o no tener organización => si tiene Account con org, se usa esa; si no, None.
     """
     if user.is_superuser:
-        # Para superuser intentamos usar la organización del Account si existe
         acc = getattr(user, "account", None)
         if acc and acc.organization_id:
             return acc.organization
@@ -263,12 +277,18 @@ def password_reset_view(request):
         return redirect("login")
 
     return render(request, "core/password_reset.html")
+
+
+# =============================
+# Perfil de usuario
+# =============================
+
 @login_required
 def profile_view(request):
     """
     Permite editar:
-    - nombre (usaremos user.username)
-    - correo
+    - nombre (user.username)
+    - correo (user.email)
     - teléfono (Account.phone)
     - avatar (Account.avatar)
     """
@@ -309,10 +329,15 @@ def profile_view(request):
     })
 
 
+# =============================
+# Cambio de contraseña
+# =============================
+
 @login_required
 def password_change_custom(request):
     """
     Cambio de contraseña con validaciones personalizadas.
+    (las reglas están en PasswordChangeCustomForm)
     """
     if request.method == "POST":
         form = PasswordChangeCustomForm(request.POST)
