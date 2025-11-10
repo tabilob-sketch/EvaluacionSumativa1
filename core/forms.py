@@ -14,20 +14,12 @@ from .models import Device, Category, Account
 class DeviceForm(forms.ModelForm):
     class Meta:
         model = Device
-        # IMPORTANTE: aquí NO va "status" porque el modelo no lo tiene
+        # SOLO campos que estamos seguros que existen en el modelo
         fields = [
             "name",
-            "serial_number",
             "category",
             "zone",
-            "installed_at",
-            "is_active",
-            "description",
         ]
-        widgets = {
-            "installed_at": forms.DateInput(attrs={"type": "date"}),
-            "description": forms.Textarea(attrs={"rows": 3}),
-        }
 
     def clean_name(self):
         name = self.cleaned_data.get("name", "").strip()
@@ -36,26 +28,6 @@ class DeviceForm(forms.ModelForm):
         if len(name) < 3:
             raise ValidationError("El nombre debe tener al menos 3 caracteres.")
         return name
-
-    def clean_serial_number(self):
-        sn = self.cleaned_data.get("serial_number", "").strip()
-        if not sn:
-            raise ValidationError("El número de serie es obligatorio.")
-        if len(sn) < 4:
-            raise ValidationError("El número de serie debe tener al menos 4 caracteres.")
-
-        # Evitar duplicados de serie dentro de la BD
-        qs = Device.objects.filter(serial_number__iexact=sn)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError("Ya existe un dispositivo con este número de serie.")
-        return sn
-
-    def clean(self):
-        cleaned = super().clean()
-        # ejemplo: podrías validar fechas futuras aquí si quisieras
-        return cleaned
 
 
 # =============================
@@ -107,7 +79,9 @@ class ProfileForm(forms.Form):
         if phone:
             # validamos formato simple: solo números, +, espacios y guiones
             if not re.match(r"^[0-9+\-\s]+$", phone):
-                raise ValidationError("El teléfono solo puede contener números, +, espacios y guiones.")
+                raise ValidationError(
+                    "El teléfono solo puede contener números, +, espacios y guiones."
+                )
         return phone
 
     def clean_avatar(self):
@@ -144,7 +118,7 @@ class PasswordChangeCustomForm(forms.Form):
     def clean_new_password(self):
         pwd = self.cleaned_data.get("new_password", "")
 
-        # Validaciones mínimas (según rúbrica):
+        # Validaciones mínimas:
         # - longitud >= 8
         # - al menos 1 mayúscula
         # - al menos 1 número
