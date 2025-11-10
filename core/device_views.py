@@ -4,6 +4,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseForbidden
+from django.core.paginator import Paginator
 
 from .models import Device, Measurement, Alert, Category, Zone, Organization
 from .forms import DeviceForm
@@ -13,7 +14,7 @@ from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devi
 @login_required
 def device_list(request):
     """
-    Lista de dispositivos con filtros por categoría y zona.
+    Lista de dispositivos con filtros por categoría y zona + paginación.
     Respeta la organización del usuario.
     """
     if not _require_org_or_redirect(request):
@@ -21,30 +22,36 @@ def device_list(request):
 
     org = _user_org_or_none(request.user)
 
-    devices = Device.objects.select_related("category", "zone", "organization").all()
+    devices_qs = Device.objects.select_related("category", "zone", "organization").all()
     categories = Category.objects.all()
     zones = Zone.objects.all()
 
     if org:
-        devices = devices.filter(organization=org)
+        devices_qs = devices_qs.filter(organization=org)
         categories = categories.filter(organization=org)
         zones = zones.filter(organization=org)
 
+    # filtros
     category_id = request.GET.get("category", "all")
     zone_id = request.GET.get("zone", "all")
 
     if category_id != "all":
-        devices = devices.filter(category_id=category_id)
+        devices_qs = devices_qs.filter(category_id=category_id)
     if zone_id != "all":
-        devices = devices.filter(zone_id=zone_id)
+        devices_qs = devices_qs.filter(zone_id=zone_id)
+
+    # paginación (6 dispositivos por página)
+    page_number = request.GET.get("page", 1)
+    paginator = Paginator(devices_qs, 6)
+    page_obj = paginator.get_page(page_number)
 
     context = {
-        "devices": devices,
+        "devices": page_obj,              # para compatibilidad si usas "devices"
+        "page_obj": page_obj,            # objeto de paginación
         "categories": categories,
         "zones": zones,
         "selected_category": category_id,
         "selected_zone": zone_id,
-        # usamos esto en el template para mostrar/ocultar el botón de crear
         "can_manage_devices": _can_manage_devices(request.user),
     }
     return render(request, "core/device_list.html", context)
