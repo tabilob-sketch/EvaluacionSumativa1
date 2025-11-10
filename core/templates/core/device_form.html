@@ -5,7 +5,13 @@
 <div class="container mt-5">
   <div class="card shadow-lg border-0">
     <div class="card-header bg-primary text-white">
-      <h4 class="mb-0">{{ form.instance.pk|yesno:"Editar Dispositivo,Nuevo Dispositivo" }}</h4>
+      <h4 class="mb-0">
+        {% if mode == "edit" %}
+          Editar Dispositivo
+        {% else %}
+          Nuevo Dispositivo
+        {% endif %}
+      </h4>
     </div>
 
     <div class="card-body">

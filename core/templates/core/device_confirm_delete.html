@@ -1,30 +1,15 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="container mt-5">
-  <div class="card border-0 shadow-lg">
-    <div class="card-header bg-danger text-white">
-      <h4 class="mb-0">Eliminar dispositivo</h4>
-    </div>
-    <div class="card-body">
-      <p>
-        ¿Seguro que deseas eliminar el dispositivo
-        <strong>{{ device.name }}</strong>?
-      </p>
-      <p class="text-muted mb-4">
-        Esta acción no se puede deshacer.
-      </p>
+{% block title %}Eliminar dispositivo{% endblock %}
 
-      <form method="post">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger">
-          Sí, eliminar
-        </button>
-        <a href="{% url 'device_list' %}" class="btn btn-secondary">
-          Cancelar
-        </a>
-      </form>
-    </div>
-  </div>
-</div>
+{% block content %}
+<h2>Eliminar dispositivo</h2>
+
+<p>¿Estás seguro que quieres eliminar el dispositivo <strong>{{ device.name }}</strong>?</p>
+
+<form method="post">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-danger">Sí, eliminar</button>
+  <a href="{% url 'device_detail' device.id %}" class="btn btn-secondary">Cancelar</a>
+</form>
 {% endblock %}
