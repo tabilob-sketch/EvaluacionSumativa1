@@ -9,6 +9,9 @@ from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 from django.utils import timezone
 
+from django.contrib.auth.models import User
+from .models import Account, Device, Category
+
 from .models import (
     Organization,
     Category,
@@ -260,3 +263,72 @@ def password_reset_view(request):
         return redirect("login")
 
     return render(request, "core/password_reset.html")
+@login_required
+def profile_view(request):
+    """
+    Permite editar:
+    - nombre (usaremos user.username)
+    - correo
+    - teléfono (Account.phone)
+    - avatar (Account.avatar)
+    """
+    user = request.user
+    acc = getattr(user, "account", None)
+
+    if request.method == "POST":
+        form = ProfileForm(request.POST, request.FILES)
+        if form.is_valid():
+            name = form.cleaned_data["name"]
+            email = form.cleaned_data["email"]
+            phone = form.cleaned_data["phone"]
+            avatar = form.cleaned_data.get("avatar")
+
+            user.username = name
+            user.email = email
+            user.save()
+
+            if acc:
+                acc.phone = phone
+                if avatar:
+                    acc.avatar = avatar
+                acc.save()
+
+            messages.success(request, "Perfil actualizado correctamente.")
+            return redirect("profile")
+    else:
+        initial = {
+            "name": user.username,
+            "email": user.email,
+            "phone": getattr(acc, "phone", "") if acc else "",
+        }
+        form = ProfileForm(initial=initial)
+
+    return render(request, "core/profile.html", {
+        "form": form,
+        "account": acc,
+    })
+
+
+@login_required
+def password_change_custom(request):
+    """
+    Cambio de contraseña con validaciones personalizadas.
+    """
+    if request.method == "POST":
+        form = PasswordChangeCustomForm(request.POST)
+        if form.is_valid():
+            current = form.cleaned_data["current_password"]
+            new = form.cleaned_data["new_password"]
+
+            if not request.user.check_password(current):
+                form.add_error("current_password", "La contraseña actual no es correcta.")
+            else:
+                request.user.set_password(new)
+                request.user.save()
+                update_session_auth_hash(request, request.user)
+                messages.success(request, "Contraseña cambiada correctamente.")
+                return redirect("profile")
+    else:
+        form = PasswordChangeCustomForm()
+
+    return render(request, "core/password_change.html", {"form": form})

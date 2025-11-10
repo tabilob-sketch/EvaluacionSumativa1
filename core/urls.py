@@ -1,14 +1,14 @@
 # core/urls.py
 
 from django.urls import path
-from . import views          # vistas generales (dashboard, auth, etc.)
-from . import device_views   # vistas del CRUD de Device
+from . import views
+from . import device_views
 
 urlpatterns = [
     # Dashboard
     path("", views.dashboard, name="dashboard"),
 
-    # Dispositivos (CRUD)
+    # Dispositivos
     path("devices/", device_views.device_list, name="device_list"),
     path("devices/<int:device_id>/", device_views.device_detail, name="device_detail"),
     path("devices/create/", device_views.device_create, name="device_create"),
@@ -26,6 +26,10 @@ urlpatterns = [
     path("logout/", views.logout_view, name="logout"),
     path("password-reset/", views.password_reset_view, name="password_reset"),
 
-    # Página sin organización
+    # Perfil
+    path("profile/", views.profile_view, name="profile"),
+    path("profile/password/", views.password_change_custom, name="password_change_custom"),
+
+    # Sin organización
     path("no-org/", views.no_org_view, name="no_org"),
 ]

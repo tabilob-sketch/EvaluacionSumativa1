@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Mi Perfil{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>Mi perfil</h2>
+
+  <div class="row mt-3">
+    <div class="col-md-4">
+      {% if account and account.avatar %}
+        <img src="{{ account.avatar.url }}" alt="Avatar" class="img-fluid rounded mb-3">
+      {% else %}
+        <div class="border rounded p-4 text-center text-muted">
+          Sin avatar
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="col-md-8">
+      <form method="post" enctype="multipart/form-data" class="card card-body">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <div class="mb-3">
+          <label class="form-label">Nombre</label>
+          {{ form.name|as_widget:{"class":"form-control"} }}
+          {{ form.name.errors }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Correo</label>
+          {{ form.email|as_widget:{"class":"form-control"} }}
+          {{ form.email.errors }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Teléfono</label>
+          {{ form.phone|as_widget:{"class":"form-control"} }}
+          {{ form.phone.errors }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Avatar</label>
+          {{ form.avatar|as_widget:{"class":"form-control"} }}
+          {{ form.avatar.errors }}
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+          <a href="{% url 'password_change_custom' %}" class="btn btn-outline-secondary">
+            Cambiar contraseña
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -3,15 +3,23 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, HttpResponse
+from django.core.paginator import Paginator
+
+import csv
 
 from .models import Device, Measurement, Alert, Category, Zone
-from .forms import DeviceForm
 from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
 
 
 @login_required
 def device_list(request):
+    """
+    Listado de dispositivos con:
+    - Filtros por categoría y zona
+    - Paginación
+    - Exportación a CSV (Excel compatible)
+    """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
@@ -26,16 +34,46 @@ def device_list(request):
         categories = categories.filter(organization=org)
         zones = zones.filter(organization=org)
 
-    category_id = request.GET.get("category", "all")
-    zone_id = request.GET.get("zone", "all")
+    # Filtros (recordados en sesión)
+    category_id = request.GET.get("category", request.session.get("filter_category", "all"))
+    zone_id = request.GET.get("zone", request.session.get("filter_zone", "all"))
+
+    request.session["filter_category"] = category_id
+    request.session["filter_zone"] = zone_id
 
     if category_id != "all":
         devices = devices.filter(category_id=category_id)
     if zone_id != "all":
         devices = devices.filter(zone_id=zone_id)
 
+    # Exportar a "Excel" (CSV)
+    if request.GET.get("export") == "excel":
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="dispositivos.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(["ID", "Nombre", "Categoría", "Zona", "Organización", "Estado"])
+
+        for d in devices:
+            writer.writerow([
+                d.id,
+                d.name,
+                getattr(d.category, "name", ""),
+                getattr(d.zone, "name", ""),
+                getattr(d.organization, "name", ""),
+                getattr(d, "status", ""),
+            ])
+
+        return response
+
+    # Paginación
+    paginator = Paginator(devices, 9)  # 9 por página
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
     context = {
-        "devices": devices,
+        "devices": page_obj.object_list,
+        "page_obj": page_obj,
         "categories": categories,
         "zones": zones,
         "selected_category": category_id,
@@ -70,8 +108,6 @@ def device_detail(request, device_id):
 def device_create(request):
     """
     Crea un nuevo Device dentro de la organización del usuario.
-    - Usuarios normales: usan la organización de su Account.
-    - Superuser: se le asigna la organización de la categoría/zona.
     Solo para usuarios con permiso (_can_manage_devices).
     """
     if not _require_org_or_redirect(request):
@@ -80,49 +116,29 @@ def device_create(request):
     if not _can_manage_devices(request.user):
         return HttpResponseForbidden("No tienes permiso para crear dispositivos.")
 
-    org = _user_org_or_none(request.user)  # None para superuser, org para el resto
+    org = _user_org_or_none(request.user)
+    if org is None and not request.user.is_superuser:
+        messages.error(request, "No tienes una organización asociada.")
+        return redirect("dashboard")
 
-    # Si NO es superuser y no tiene organización → no dejamos crear
-    if not request.user.is_superuser and org is None:
-        messages.error(request, "No tienes una organización asociada. Pide al administrador que te asigne una.")
-        return redirect("device_list")
+    from .forms import DeviceForm  # import local para evitar ciclos
 
     if request.method == "POST":
         form = DeviceForm(request.POST)
-
-        # Limitar opciones de categoría y zona si el usuario tiene organización
-        if org and not request.user.is_superuser:
+        if org:
             form.fields["category"].queryset = Category.objects.filter(organization=org)
             form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
         if form.is_valid():
             device = form.save(commit=False)
-
-            if request.user.is_superuser:
-                # Para superuser, inferimos la organización desde la categoría o zona
-                if device.category and device.category.organization_id:
-                    device.organization = device.category.organization
-                elif device.zone and device.zone.organization_id:
-                    device.organization = device.zone.organization
-                else:
-                    messages.error(
-                        request,
-                        "No se pudo determinar la organización. Asegúrate de escoger una categoría/zona válida."
-                    )
-                    return render(request, "core/device_form.html", {
-                        "form": form,
-                        "mode": "create",
-                    })
-            else:
-                # Usuario normal: siempre su organización
+            if not request.user.is_superuser:
                 device.organization = org
-
             device.save()
             messages.success(request, "Dispositivo creado correctamente.")
             return redirect("device_list")
     else:
         form = DeviceForm()
-        if org and not request.user.is_superuser:
+        if org:
             form.fields["category"].queryset = Category.objects.filter(organization=org)
             form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
@@ -152,31 +168,24 @@ def device_update(request, device_id):
 
     device = get_object_or_404(base, id=device_id)
 
+    from .forms import DeviceForm
+
     if request.method == "POST":
         form = DeviceForm(request.POST, instance=device)
-        if org and not request.user.is_superuser:
+        if org:
             form.fields["category"].queryset = Category.objects.filter(organization=org)
             form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
         if form.is_valid():
             device = form.save(commit=False)
-
-            if request.user.is_superuser:
-                # Mantener consistencia: organización desde categoría o zona
-                if device.category and device.category.organization_id:
-                    device.organization = device.category.organization
-                elif device.zone and device.zone.organization_id:
-                    device.organization = device.zone.organization
-            else:
-                if org:
-                    device.organization = org
-
+            if org and not request.user.is_superuser:
+                device.organization = org
             device.save()
             messages.success(request, "Dispositivo actualizado correctamente.")
             return redirect("device_detail", device_id=device.id)
     else:
         form = DeviceForm(instance=device)
-        if org and not request.user.is_superuser:
+        if org:
             form.fields["category"].queryset = Category.objects.filter(organization=org)
             form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
