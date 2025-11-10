@@ -1,21 +1,17 @@
 # core/device_views.py
 
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
-from django.shortcuts import render, get_object_or_404, redirect
 
-from .models import Device, Measurement, Alert, Category, Zone, Organization
+from .models import Device, Measurement, Alert, Category, Zone
 from .forms import DeviceForm
 from .views import _require_org_or_redirect, _user_org_or_none, _can_manage_devices
 
 
 @login_required
 def device_list(request):
-    """
-    Lista de dispositivos, filtrados por organización y por
-    categoría/zona si se envían por GET.
-    """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
@@ -25,7 +21,6 @@ def device_list(request):
     categories = Category.objects.all()
     zones = Zone.objects.all()
 
-    # Si el usuario tiene organización (no-superuser), filtramos por ella.
     if org:
         devices = devices.filter(organization=org)
         categories = categories.filter(organization=org)
@@ -45,7 +40,6 @@ def device_list(request):
         "zones": zones,
         "selected_category": category_id,
         "selected_zone": zone_id,
-        # usamos esto en el template para mostrar/ocultar botón Crear
         "can_manage_devices": _can_manage_devices(request.user),
     }
     return render(request, "core/device_list.html", context)
@@ -53,9 +47,6 @@ def device_list(request):
 
 @login_required
 def device_detail(request, device_id):
-    """
-    Detalle de un dispositivo. Respeta la organización del usuario.
-    """
     org = _user_org_or_none(request.user)
     base = Device.objects.select_related("category", "zone", "organization")
     if org and not request.user.is_superuser:
@@ -79,6 +70,8 @@ def device_detail(request, device_id):
 def device_create(request):
     """
     Crea un nuevo Device dentro de la organización del usuario.
+    - Usuarios normales: usan la organización de su Account.
+    - Superuser: se le asigna la organización de la categoría/zona.
     Solo para usuarios con permiso (_can_manage_devices).
     """
     if not _require_org_or_redirect(request):
@@ -87,36 +80,51 @@ def device_create(request):
     if not _can_manage_devices(request.user):
         return HttpResponseForbidden("No tienes permiso para crear dispositivos.")
 
-    org = _user_org_or_none(request.user)
+    org = _user_org_or_none(request.user)  # None para superuser, org para el resto
 
-    # Si el usuario es superuser y no tiene org en Account,
-    # usamos la primera organización disponible en la BD.
-    if org is None and request.user.is_superuser:
-        org = Organization.objects.order_by("id").first()
-
-    # Si aún no hay organización, no podemos crear el dispositivo.
-    if org is None:
-        messages.error(request, "No hay organización disponible para asociar el dispositivo.")
+    # Si NO es superuser y no tiene organización → no dejamos crear
+    if not request.user.is_superuser and org is None:
+        messages.error(request, "No tienes una organización asociada. Pide al administrador que te asigne una.")
         return redirect("device_list")
 
     if request.method == "POST":
         form = DeviceForm(request.POST)
 
-        # Limitamos categorías y zonas a la organización del usuario
-        form.fields["category"].queryset = Category.objects.filter(organization=org)
-        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        # Limitar opciones de categoría y zona si el usuario tiene organización
+        if org and not request.user.is_superuser:
+            form.fields["category"].queryset = Category.objects.filter(organization=org)
+            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
         if form.is_valid():
             device = form.save(commit=False)
-            # SIEMPRE seteamos organization (clave del error que tenías)
-            device.organization = org
+
+            if request.user.is_superuser:
+                # Para superuser, inferimos la organización desde la categoría o zona
+                if device.category and device.category.organization_id:
+                    device.organization = device.category.organization
+                elif device.zone and device.zone.organization_id:
+                    device.organization = device.zone.organization
+                else:
+                    messages.error(
+                        request,
+                        "No se pudo determinar la organización. Asegúrate de escoger una categoría/zona válida."
+                    )
+                    return render(request, "core/device_form.html", {
+                        "form": form,
+                        "mode": "create",
+                    })
+            else:
+                # Usuario normal: siempre su organización
+                device.organization = org
+
             device.save()
             messages.success(request, "Dispositivo creado correctamente.")
             return redirect("device_list")
     else:
         form = DeviceForm()
-        form.fields["category"].queryset = Category.objects.filter(organization=org)
-        form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        if org and not request.user.is_superuser:
+            form.fields["category"].queryset = Category.objects.filter(organization=org)
+            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
     return render(request, "core/device_form.html", {
         "form": form,
@@ -138,7 +146,6 @@ def device_update(request, device_id):
 
     org = _user_org_or_none(request.user)
 
-    # Superuser puede ver todos, los demás solo su org
     base = Device.objects.select_related("category", "zone", "organization")
     if org and not request.user.is_superuser:
         base = base.filter(organization=org)
@@ -147,21 +154,29 @@ def device_update(request, device_id):
 
     if request.method == "POST":
         form = DeviceForm(request.POST, instance=device)
-        if org:
+        if org and not request.user.is_superuser:
             form.fields["category"].queryset = Category.objects.filter(organization=org)
             form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
         if form.is_valid():
             device = form.save(commit=False)
-            # Para usuarios normales, fijamos la org de su cuenta
-            if org and not request.user.is_superuser:
-                device.organization = org
+
+            if request.user.is_superuser:
+                # Mantener consistencia: organización desde categoría o zona
+                if device.category and device.category.organization_id:
+                    device.organization = device.category.organization
+                elif device.zone and device.zone.organization_id:
+                    device.organization = device.zone.organization
+            else:
+                if org:
+                    device.organization = org
+
             device.save()
             messages.success(request, "Dispositivo actualizado correctamente.")
             return redirect("device_detail", device_id=device.id)
     else:
         form = DeviceForm(instance=device)
-        if org:
+        if org and not request.user.is_superuser:
             form.fields["category"].queryset = Category.objects.filter(organization=org)
             form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
