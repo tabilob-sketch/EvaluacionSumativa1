@@ -294,6 +294,12 @@ def password_reset_view(request):
 # Perfil de usuario
 # =============================
 
+from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.shortcuts import render, redirect
+from .forms import ProfileForm
+
 @login_required
 def profile_view(request):
     """
@@ -304,7 +310,8 @@ def profile_view(request):
     - avatar (Account.avatar)
     """
     user = request.user
-    # user.account puede lanzar Account.DoesNotExist, así que lo protegemos:
+
+    # Nos aseguramos de que exista un Account asociado
     try:
         acc = user.account
     except ObjectDoesNotExist:
@@ -318,20 +325,26 @@ def profile_view(request):
             phone = form.cleaned_data["phone"]
             avatar = form.cleaned_data.get("avatar")
 
-            # Actualizamos el usuario
+            # Actualizamos datos del User
             user.username = name
             user.email = email
             user.save()
 
-            # Actualizamos Account si existe
+            # Si tiene cuenta asociada, actualizamos también
             if acc:
                 acc.phone = phone
                 if avatar:
                     acc.avatar = avatar
                 acc.save()
+            else:
+                # En caso de que no exista, la creamos
+                from core.models import Account
+                acc = Account.objects.create(user=user, phone=phone, avatar=avatar)
 
             messages.success(request, "Perfil actualizado correctamente.")
             return redirect("profile")
+        else:
+            messages.error(request, "Corrige los errores del formulario antes de continuar.")
     else:
         initial = {
             "name": user.username,

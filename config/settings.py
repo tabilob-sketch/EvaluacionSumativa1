@@ -151,3 +151,5 @@ LOGOUT_REDIRECT_URL = "/login/"
 # Archivos subidos por el usuario (avatars, etc.)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

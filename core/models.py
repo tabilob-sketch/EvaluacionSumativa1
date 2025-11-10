@@ -158,15 +158,17 @@ class Alert(models.Model):
 
 
 class Account(models.Model):
-    class Role(models.TextChoices):
-        ORG_ADMIN = "ORG_ADMIN", "Org Admin"
-        VERIFIER = "VERIFIER", "Verifier"
-        MEMBER = "MEMBER", "Member"
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    organization = models.ForeignKey(Organization, on_delete=models.SET_NULL, null=True, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="account")
-    organization = models.ForeignKey("Organization", on_delete=models.PROTECT, null=True, blank=True)
+    class Role(models.TextChoices):
+        ORG_ADMIN = 'ORG_ADMIN', 'Administrador'
+        VERIFIER = 'VERIFIER', 'Verificador'
+        MEMBER = 'MEMBER', 'Miembro'
+
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.MEMBER)
 
     def __str__(self):
-        org = self.organization.name if self.organization_id else "sin organización"
-        return f"{self.user.username} ({org} - {self.role})"
+        return f"{self.user.username} ({self.role})"
