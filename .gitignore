@@ -1,4 +1,18 @@
-venv/ 
-__pycache__/ 
-*.pyc 
-*.sqlite3 
+# Entornos Python
+venv/
+*.pyc
+__pycache__/
+
+# Archivos sensibles
+.env
+
+# Archivos de Django que no deben subirse
+db.sqlite3
+media/
+staticfiles/
+
+# Archivos de VS Code
+.vscode/
+
+# Logs
+*.log
