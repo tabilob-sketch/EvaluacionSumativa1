@@ -20,7 +20,7 @@ from core.validators import (
 # =========================
 
 class Organization(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=20, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -37,7 +37,7 @@ class Organization(models.Model):
 # =========================
 
 class Category(models.Model):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=20)
     organization = models.ForeignKey(
         Organization,
         on_delete=models.PROTECT,
