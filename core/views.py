@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from core.validators import validate_email_format, validate_email_domain
+from django.core.exceptions import ValidationError
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -238,6 +240,14 @@ def login_view(request):
         email = request.POST.get("email")
         password = request.POST.get("password")
 
+        # ⛔ VALIDACIÓN DE EMAIL
+        try:
+            validate_email_format(email)
+            validate_email_domain(email)
+        except ValidationError as e:
+            messages.error(request, str(e))
+            return redirect("login")
+
         user = authenticate(request, username=email, password=password)
         if user is not None:
             login(request, user)
@@ -248,22 +258,41 @@ def login_view(request):
     return render(request, "core/login.html")
 
 
+
 def logout_view(request):
     logout(request)
     return redirect("login")
 
 
 def register_view(request):
+
     if request.method == "POST":
         email = request.POST.get("email")
         password = request.POST.get("password")
 
+        # ----------------------------------------
+        # 🔍 VALIDACIÓN DEL FORMATO DE CORREO
+        # ----------------------------------------
+        try:
+            validate_email_format(email)
+            validate_email_domain(email)
+        except ValidationError as e:
+            messages.error(request, str(e))
+            return redirect("register")
+
+        # ----------------------------------------
+        # ❌ VALIDAR SI EL USUARIO YA EXISTE
+        # ----------------------------------------
         if User.objects.filter(username=email).exists():
             messages.error(request, "Ya existe un usuario con este correo.")
-        else:
-            User.objects.create_user(username=email, email=email, password=password)
-            messages.success(request, "Registro exitoso. Ahora puedes iniciar sesión.")
-            return redirect("login")
+            return redirect("register")
+
+        # ----------------------------------------
+        # ✔ CREAR USUARIO
+        # ----------------------------------------
+        User.objects.create_user(username=email, email=email, password=password)
+        messages.success(request, "Registro exitoso. Ahora puedes iniciar sesión.")
+        return redirect("login")
 
     return render(request, "core/register.html")
 
