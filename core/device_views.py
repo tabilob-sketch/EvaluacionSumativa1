@@ -1,5 +1,8 @@
 # core/device_views.py
 
+import csv
+from django.utils.encoding import smart_str
+
 from django.db import IntegrityError
 from django.core.exceptions import ValidationError
 
