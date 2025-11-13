@@ -17,11 +17,21 @@ load_dotenv(BASE_DIR / ".env")
 # Claves y modo debug
 # =========================
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-unsafe")
+# Ahora usamos las variables DJANGO_* que tienes en tu .env
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-unsafe")
 
-DEBUG = os.getenv("DEBUG", "True") == "True"
+DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+ALLOWED_HOSTS = os.getenv(
+    "DJANGO_ALLOWED_HOSTS",
+    "127.0.0.1,localhost,3.215.158.126"
+).split(",")
+
+# Opcional pero recomendado: CSRF confiable para tu IP
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    "http://3.215.158.126"
+).split(",")
 
 # =========================
 # Apps instaladas
@@ -60,7 +70,6 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        # Si quieres carpetas de templates globales, puedes añadir aquí
         "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -124,9 +133,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internacionalización
 # =========================
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = os.getenv("DJANGO_LANGUAGE_CODE", "es-cl")
 
-TIME_ZONE = "UTC"
+TIME_ZONE = os.getenv("DJANGO_TIME_ZONE", "America/Santiago")
 
 USE_I18N = True
 
@@ -136,13 +145,9 @@ USE_TZ = True
 # Archivos estáticos y media
 # =========================
 
-# URL para acceder a los estáticos
 STATIC_URL = "/static/"
-
-# Carpeta donde collectstatic copiará todos los archivos para producción
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Archivos subidos por el usuario (por ejemplo avatares)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
