@@ -242,12 +242,15 @@ def device_export(request):
     if zone_id != "all":
         qs = qs.filter(zone_id=zone_id)
 
-    import csv
+    # Ordenar para que quede ordenado en Excel
+    qs = qs.order_by("organization__name", "category__name", "zone__name", "name")
 
-    response = HttpResponse(content_type="text/csv")
+    # CSV pensado para Excel en español: ; como separador + BOM UTF-8
+    response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
     response["Content-Disposition"] = 'attachment; filename="dispositivos.csv"'
 
-    writer = csv.writer(response)
+    writer = csv.writer(response, delimiter=';', quoting=csv.QUOTE_MINIMAL)
+
     # Encabezados
     writer.writerow([
         "ID",
@@ -261,10 +264,11 @@ def device_export(request):
     for d in qs:
         writer.writerow([
             d.id,
-            d.name,
-            d.organization.name if d.organization else "",
-            d.category.name if d.category else "",
-            d.zone.name if d.zone else "",
+            smart_str(d.name),
+            smart_str(d.organization.name if d.organization else ""),
+            smart_str(d.category.name if d.category else ""),
+            smart_str(d.zone.name if d.zone else ""),
         ])
 
     return response
+
