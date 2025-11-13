@@ -83,68 +83,56 @@ def device_detail(request, device_id):
 
 @login_required
 def device_create(request):
-    """
-    Crea un nuevo Device dentro de la organización del usuario.
-    Solo para usuarios con permiso (_can_manage_devices).
-
-    - Usuarios normales: se usa Account.organization.
-    - Superuser: si no tiene organización asociada, se usa la primera Organization
-      disponible como fallback (para pruebas).
-    """
     if not _require_org_or_redirect(request):
         return redirect("no_org")
 
-    if not _can_manage_devices(request.user):
-        return HttpResponseForbidden("No tienes permiso para crear dispositivos.")
-
-    org = _user_org_or_none(request.user)  # puede ser None si es superuser sin org
-
-    # Si no hay ninguna organización en BD, no podemos crear nada
-    if not org and not request.user.is_superuser:
-        messages.error(request, "No tienes una organización asociada.")
-        return redirect("dashboard")
+    org = _user_org_or_none(request.user)
 
     if request.method == "POST":
-        form = DeviceForm(request.POST)
+        name = request.POST.get("name")
+        category_id = request.POST.get("category")
+        zone_id = request.POST.get("zone")
 
-        # Limitamos category/zone a la organización del usuario (si tiene)
-        if org:
-            form.fields["category"].queryset = Category.objects.filter(organization=org)
-            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
+        if not name or not category_id or not zone_id:
+            messages.error(request, "Todos los campos son obligatorios.")
+            return redirect("device_create")
 
-        if form.is_valid():
-            device = form.save(commit=False)
+        try:
+            category = Category.objects.get(id=category_id, organization=org)
+            zone = Zone.objects.get(id=zone_id, organization=org)
 
-            if org:
-                # Usuario con organización normal
-                device.organization = org
-            else:
-                # Superuser sin org: intentamos usar la primera Organización como fallback
-                fallback_org = Organization.objects.first()
-                if fallback_org:
-                    device.organization = fallback_org
+            device = Device(
+                name=name,
+                category=category,
+                zone=zone,
+                organization=org  # ⬅⬅⬅ ESTO ES LO QUE FALTABA
+            )
 
-            # Si aún no hay organización, no guardamos para evitar IntegrityError
-            if device.organization is None:
-                messages.error(
-                    request,
-                    "No se pudo determinar una organización para el dispositivo. "
-                    "Crea una organización primero en el panel de administración."
-                )
-                return redirect("device_list")
-
+            device.full_clean()  # valida el modelo
             device.save()
+
             messages.success(request, "Dispositivo creado correctamente.")
             return redirect("device_list")
-    else:
-        form = DeviceForm()
-        if org:
-            form.fields["category"].queryset = Category.objects.filter(organization=org)
-            form.fields["zone"].queryset = Zone.objects.filter(organization=org)
 
-    return render(request, "core/device_form.html", {
-        "form": form,
-        "mode": "create",
+        except Category.DoesNotExist:
+            messages.error(request, "La categoría seleccionada no existe.")
+        except Zone.DoesNotExist:
+            messages.error(request, "La zona seleccionada no existe.")
+        except IntegrityError:
+            messages.error(request, "Ya existe un dispositivo con este nombre.")
+        except ValidationError as e:
+            messages.error(request, f"Error de validación: {e}")
+        except Exception as e:
+            messages.error(request, f"Error inesperado: {e}")
+
+        return redirect("device_create")
+
+    categories = Category.objects.filter(organization=org)
+    zones = Zone.objects.filter(organization=org)
+
+    return render(request, "core/device_create.html", {
+        "categories": categories,
+        "zones": zones
     })
 
 

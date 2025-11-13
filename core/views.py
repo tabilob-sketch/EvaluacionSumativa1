@@ -302,7 +302,7 @@ def password_reset_view(request):
         email = request.POST.get("email")
         messages.success(
             request,
-            f"Se enviaron instrucciones de recuperación al correo {email} (simulado).",
+            f"Se enviaron instrucciones de recuperación al correo {email} .",
         )
         return redirect("login")
 
